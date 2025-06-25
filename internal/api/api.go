@@ -57,13 +57,17 @@ func getStatus(c *gin.Context) {
 func checkboxCheck(c *gin.Context) {
 	checkboxNbr, userUuid, err := validateParams(c)
 	if err != nil {
-		err.Respond(c)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": err.Error(),
+		})
 		return
 	}
 
 	requestUuid, err := uuidservice.NewRequestUuid()
 	if err != nil {
-		err.Respond(c)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Internal Server Error",
+		})
 		return
 	}
 
@@ -76,10 +80,12 @@ func checkboxCheck(c *gin.Context) {
 		Hostname:    getServerName(),
 		Hostip:      getServerIp(),
 	}
-	
+
 	err = queueservice.ProduceCheckboxActionMessage(payload)
 	if err != nil {
-		err.Respond(c)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Internal Server Error",
+		})
 		return
 	}
 

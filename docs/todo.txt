@@ -1,0 +1,3 @@
+TODO
+
+- Install config system using viper
