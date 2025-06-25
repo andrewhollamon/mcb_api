@@ -1,0 +1,13 @@
+sequenceDiagram
+    participant FrontEnd
+    participant API
+    participant DoCheckQueue
+    participant Logger
+    Note over FrontEnd,Logger: Check A Checkbox
+    FrontEnd->>API: DoCheck(ClientUUID,CheckboxNbr)
+    API->>Logger: Log DoCheck received
+    API->>API: Determine PartitionTopic to Use
+    API->>DoCheckQueue: Submit DoCheck(ClientUUID,CheckboxNbr)<br />to Partition Topic
+    DoCheckQueue->>API: Submit Result
+    API->>Logger: Log queue submission result
+    API->>FrontEnd: Return result

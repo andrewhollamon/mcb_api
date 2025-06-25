@@ -1,0 +1,12 @@
+sequenceDiagram
+    participant FrontEnd
+    participant API
+    participant DB
+    Note over FrontEnd,DB: Front End Auto Updates
+    FrontEnd->>API: Every N Seconds<br />Poll for updates since timestamp X
+    API->>DB: Query updates since timestamp X
+    DB->>API: Return all check successes since timestamp X
+    API->>FrontEnd: Return all check successes
+    FrontEnd->>FrontEnd: Disabled checkboxes w/ Spinner
+    FrontEnd->>FrontEnd: Uncheck any checkboxes needed
+    FrontEnd->>FrontEnd: Enable checkboxes

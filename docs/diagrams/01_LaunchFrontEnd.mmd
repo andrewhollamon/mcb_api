@@ -1,0 +1,23 @@
+sequenceDiagram
+    participant FrontEnd
+    participant API
+    participant DB
+    participant Logger
+    Note over FrontEnd,Logger: Launch New FrontEnd Instance
+    FrontEnd->>API: POST: NewFrontEndInstance
+    API->>DB: INSERT new CLIENT_T row
+    API->>Logger: Log front end creation
+    DB->>API: Client UUID
+    API->>DB: Get Checkbox World State from DB
+    DB->>API: Return Checked State
+    API->>API: Compress bits to hex string
+    API->>API: Cache value for some N seconds
+    API->>FrontEnd: Client UUID, NumberOfCheckboxes, Checked State
+    FrontEnd->>FrontEnd: Draw All Checkboxes Unchecked<br />Disabled<br />Spinner
+    FrontEnd->>FrontEnd: Update all checked checkboxes from initial state
+    FrontEnd->>API: Request all updates since last 60 seconds
+    API->>DB: Get all SUCCESS records<br />from UPDATE_T<br />for last 60 seconds
+    DB->>API: Return records
+    API->>FrontEnd: Return stream of updates
+    FrontEnd->>FrontEnd: Uncheck any checkboxes from queue
+    FrontEnd->>FrontEnd: Make Checkboxes Enabled
