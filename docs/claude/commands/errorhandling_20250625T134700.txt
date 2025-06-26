@@ -1,0 +1,45 @@
+Think about how to do mature, best-practices error handling, logging, and tracing for this golang project.
+
+These are linked together because they interact. Anytime an error is produced, we need to make sure that the error bubbles up, and is logged, and we have a trace_id on every request.
+
+You can use third party libraries if they are mature and have good documentation and community support. Otherwise writing our own is acceptable.
+
+Do not make any code changes, just think about what to do, and show me your plan.
+
+First, examine the existing project, as it has changed since last time you looked at it.
+
+Error Handling:
+
+Error handling in this app should have the following characteristics:
+
+- Optional field to include what http status code to return for api or web requests
+- Allow nesting (wrapping) of errors 
+- Allow a stacktrace to be generated, and used by the logging system
+- Include an error constants file, where named errors are defined with a fixed string value
+- Should allow the golang context to be added to the error
+- Assume we will be using Gin for API endpoints
+- Assume we will also have errors that occur that are not associated with an API endpoint, but we will still have a context and trace_id 
+- Most of the code files for this should live in `internal/error` folder, but package specific errors can live in those folders. For example, queue specific error types or error constants can be created in `internal/queueservice`.
+
+Note how the existing code works in `internal/api` and calls to `internal/queueservice` when designing the error system.
+
+Logging:
+
+Should probably use whatever is the most commonly used, mature logging library in the community.
+
+If there are multiple options that fit this criteria, present them and I will choose.
+
+This will need to work well with Gin for the API and http server.
+
+Any uncaught errors or panics that get to the gin router handlers should be easily logged.
+
+This should be able to take stacktraces from the error.
+
+This should allow for different logging targets/outputs depending on environment. For example, in local DEV environment, we will want to send to stdout and also to a log file. But in deployed test and production environments, it should be able to log also to the aws or azure distributed logging systems. This should be controllable by configuration on startup.
+
+Tracing:
+
+Each incoming API or web request should get a UUID trace_id attached to it (this can also be called requestId or request_id in our current code). The api and web server will be using the golang gin framework.
+
+This should be using best practices, and whatever is the most widely used and/or mature framework out there.  If there is a choice between gin's built-in and some external library, present both and I will choose.
+

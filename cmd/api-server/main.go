@@ -1,24 +1,37 @@
 package main
 
 import (
-	"fmt"
 	"github.com/andrewhollamon/millioncheckboxes-api/internal/api"
+	"github.com/andrewhollamon/millioncheckboxes-api/internal/logging"
 	"github.com/andrewhollamon/millioncheckboxes-api/internal/memorystore"
+	"github.com/rs/zerolog/log"
 )
 
 func main() {
+	// Initialize logging system from environment variables
+	err := logging.InitLoggerFromEnv()
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to initialize logging system")
+	}
 
-	// first setup the memory store
+	log.Info().Msg("Starting MCB API Server")
+
+	// Setup the memory store
+	log.Info().Msg("Initializing memory store")
 	memorystore.Init()
 
+	// Setup router with middleware
+	log.Info().Msg("Setting up HTTP router")
 	r := api.SetupRouter()
-	// Listen and Server in 0.0.0.0:8080
-	err := r.Run(":8080")
-	if err == nil {
-		fmt.Printf("Router ended with error %v", err)
-		return
+
+	// Start server
+	log.Info().Str("port", "8080").Msg("Starting HTTP server")
+	err = r.Run(":8080")
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to start HTTP server")
 	}
 
 	// test whether the queue is reachable, and stop accepting changes if not
+	// TODO: Add queue health check
 
 }

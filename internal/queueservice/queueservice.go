@@ -1,8 +1,12 @@
 package queueservice
 
 import (
-	error0 "github.com/andrewhollamon/millioncheckboxes-api/internal/error"
+	"context"
 	"time"
+
+	apierror "github.com/andrewhollamon/millioncheckboxes-api/internal/error"
+	"github.com/andrewhollamon/millioncheckboxes-api/internal/logging"
+	"github.com/andrewhollamon/millioncheckboxes-api/internal/tracing"
 )
 
 // not sure the best way to setup this struct to handle structural changes in future version
@@ -30,6 +34,30 @@ type CheckboxActionMessage struct {
 	Payload CheckboxActionPayload `json:"payload"`
 }
 
-func ProduceCheckboxActionMessage(payload CheckboxActionPayload) error0.APIError {
+func ProduceCheckboxActionMessage(payload CheckboxActionPayload) apierror.APIError {
+	return ProduceCheckboxActionMessageWithContext(context.Background(), payload)
+}
+
+func ProduceCheckboxActionMessageWithContext(ctx context.Context, payload CheckboxActionPayload) apierror.APIError {
+	traceID := tracing.GetTraceIDFromContext(ctx)
+	
+	// Log the queue operation
+	logging.LogQueueOperation(traceID, "produce_checkbox_action", map[string]interface{}{
+		"action":       payload.Action,
+		"checkbox_nbr": payload.CheckboxNbr,
+		"user_uuid":    payload.UserUuid,
+		"request_uuid": payload.RequestUuid,
+		"hostname":     payload.Hostname,
+		"hostip":       payload.Hostip,
+	})
+	
+	// TODO: Implement actual queue message production
+	// For now, this is a placeholder that simulates success
+	// In a real implementation, this would:
+	// 1. Create the message header
+	// 2. Create the full message with header and payload
+	// 3. Send to the queue (AWS SQS, etc.)
+	// 4. Handle any errors and convert them to APIErrors
+	
 	return nil
 }

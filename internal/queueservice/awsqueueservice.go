@@ -3,30 +3,31 @@ package queueservice
 import (
 	"context"
 	"encoding/json"
-	"fmt"
-	error0 "github.com/andrewhollamon/millioncheckboxes-api/internal/error"
+	apierror "github.com/andrewhollamon/millioncheckboxes-api/internal/error"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/sns"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
+	"github.com/rs/zerolog/log"
 )
 
 func consumeSqsMessage(ctx context.Context, queueUrl string) error {
-	sqsClient, err := newSqsClient()
-	if err != nil {
-		return err
-	}
+	/*	sqsClient, err := newSqsClient()
+		if err != nil {
+			return err
+		}
+	*/return nil
 }
 
-func publishSnsMessage(ctx context.Context, topicArn string, message *CheckboxActionMessage) error {
+func publishSnsMessage(ctx context.Context, topicArn string, message *CheckboxActionMessage) apierror.APIError {
 	snsClient, err := newSnsClient()
 	if err != nil {
-		return err
+		return apierror.WrapWithCodeFromConstants(err, apierror.ErrQueueUnavailable, "failed to create SNS client")
 	}
 
 	jsonBytes, err := json.Marshal(message)
 	if err != nil {
-		return error0.NewQueueError("Failed to marshal message to JSON", err)
+		return apierror.WrapWithCodeFromConstants(err, apierror.ErrInternalServer, "failed to marshal message to JSON")
 	}
 
 	publishInput := sns.PublishInput{
@@ -38,13 +39,12 @@ func publishSnsMessage(ctx context.Context, topicArn string, message *CheckboxAc
 
 	pubOut, err := snsClient.Publish(ctx, &publishInput)
 	if err != nil {
-		return error0.NewQueueError("Failed to publish message to SNS", err)
+		return apierror.WrapWithCodeFromConstants(err, apierror.ErrQueueUnavailable, "failed to publish message to SNS")
 	}
 
-	fmt.Println("Message sent to SNS")
-	fmt.Printf("MessageID: %v\n", pubOut.MessageId)
-	fmt.Printf("SequenceNumber: %v\n", pubOut.SequenceNumber)
-	fmt.Printf("Metadata: %v\n", pubOut.ResultMetadata)
+	log.Debug().Msg("Message sent to SNS")
+	log.Debug().Str("MessageID: %v\n", *pubOut.MessageId)
+	log.Debug().Str("SequenceNumber: %v\n", *pubOut.SequenceNumber)
 
 	return nil
 }
@@ -53,7 +53,7 @@ func configAndAuthN() (aws.Config, error) {
 	cfg, err := config.LoadDefaultConfig(context.Background(),
 		config.WithSharedConfigProfile("dev"))
 	if err != nil {
-		return cfg, error0.NewQueueError("Failed to load AWS Config", err)
+		return cfg, apierror.WrapWithCodeFromConstants(err, apierror.ErrInternalServer, "failed to load AWS Config")
 	}
 	return cfg, nil
 }

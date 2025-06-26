@@ -1,7 +1,7 @@
 package uuidservice
 
 import (
-	error0 "github.com/andrewhollamon/millioncheckboxes-api/internal/error"
+	apierror "github.com/andrewhollamon/millioncheckboxes-api/internal/error"
 	"github.com/google/uuid"
 )
 
@@ -13,18 +13,18 @@ func newUuid() (uuid.UUID, error) {
 	return uuid.NewV7()
 }
 
-func NewClientUuid() (uuid.UUID, error0.APIError) {
+func NewClientUuid() (uuid.UUID, apierror.APIError) {
 	u, err := newUuid()
 	if err != nil {
-		return u, error0.NewInternalError("UUID Generation for NewClientUUID failed", err)
+		return u, apierror.WrapWithCodeFromConstants(err, apierror.ErrInternalServer, "could not generate UUID for ClientUuid")
 	}
 	return u, nil
 }
 
-func NewRequestUuid() (uuid.UUID, error0.APIError) {
+func NewRequestUuid() (uuid.UUID, apierror.APIError) {
 	u, err := newUuid()
 	if err != nil {
-		return u, error0.NewInternalError("UUID Generation for NewRequestUuid failed", err)
+		return u, apierror.WrapWithCodeFromConstants(err, apierror.ErrInternalServer, "could not generate UUID for RequestUuid")
 	}
 	return u, nil
 }
