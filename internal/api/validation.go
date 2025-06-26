@@ -12,7 +12,7 @@ import (
 func validateCheckboxNumber(c *gin.Context) (int, error) {
 	checkboxNbrStr := strings.TrimSpace(c.Param("checkboxNbr"))
 	if checkboxNbrStr == "" {
-		return 0, errors.New("validation vrror: Missing checkbox number parameter")
+		return 0, errors.New("validation error: Missing checkbox number parameter")
 	}
 
 	checkboxNbr, err := strconv.Atoi(checkboxNbrStr)

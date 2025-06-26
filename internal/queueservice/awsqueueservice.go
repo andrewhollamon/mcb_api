@@ -20,7 +20,7 @@ func consumeSqsMessage(ctx context.Context, queueUrl string) error {
 }
 
 func publishSnsMessage(ctx context.Context, topicArn string, message *CheckboxActionMessage) apierror.APIError {
-	snsClient, err := newSnsClient()
+	snsClient, err := newSnsClient(ctx)
 	if err != nil {
 		return apierror.WrapWithCodeFromConstants(err, apierror.ErrQueueUnavailable, "failed to create SNS client")
 	}
@@ -49,8 +49,8 @@ func publishSnsMessage(ctx context.Context, topicArn string, message *CheckboxAc
 	return nil
 }
 
-func configAndAuthN() (aws.Config, error) {
-	cfg, err := config.LoadDefaultConfig(context.Background(),
+func configAndAuthN(ctx context.Context) (aws.Config, error) {
+	cfg, err := config.LoadDefaultConfig(ctx,
 		config.WithSharedConfigProfile("dev"))
 	if err != nil {
 		return cfg, apierror.WrapWithCodeFromConstants(err, apierror.ErrInternalServer, "failed to load AWS Config")
@@ -58,16 +58,16 @@ func configAndAuthN() (aws.Config, error) {
 	return cfg, nil
 }
 
-func newSnsClient() (*sns.Client, error) {
-	cfg, err := configAndAuthN()
+func newSnsClient(ctx context.Context) (*sns.Client, error) {
+	cfg, err := configAndAuthN(ctx)
 	if err != nil {
 		return nil, err
 	}
 	return sns.NewFromConfig(cfg), nil
 }
 
-func newSqsClient() (*sqs.Client, error) {
-	cfg, err := configAndAuthN()
+func newSqsClient(ctx context.Context) (*sqs.Client, error) {
+	cfg, err := configAndAuthN(ctx)
 	if err != nil {
 		return nil, err
 	}

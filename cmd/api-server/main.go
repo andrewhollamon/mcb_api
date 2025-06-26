@@ -16,7 +16,7 @@ func main() {
 	}
 
 	// Dump configuration for debugging
-	config.DumpConfig()
+	//config.DumpConfig()
 
 	// Initialize logging system from environment variables
 	err = logging.InitLoggerFromEnv()
