@@ -20,6 +20,14 @@ go.work.sum
 
 # Environment variables
 .env
+config/*.env
+
+# build folder
+bin/**
+
+# work folder
+work/**
+work/**/**
 
 # IDE specific files
 .idea/

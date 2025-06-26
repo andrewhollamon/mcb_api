@@ -30,7 +30,7 @@ func DefaultConfig() LogConfig {
 		Level:      "info",
 		Format:     "json",
 		Outputs:    []string{"stdout"},
-		FilePath:   "/var/log/mcb-api.log",
+		FilePath:   "work/logs/mcb_api.log",
 		MaxSize:    100, // 100 MB
 		MaxBackups: 3,
 		MaxAge:     28, // 28 days
@@ -48,7 +48,7 @@ func InitLogger(config LogConfig) error {
 
 	// Create writers based on outputs
 	var writers []io.Writer
-	
+
 	for _, output := range config.Outputs {
 		switch strings.ToLower(output) {
 		case "stdout":
@@ -113,10 +113,10 @@ func InitLogger(config LogConfig) error {
 // InitLoggerFromEnv initializes logger from environment variables
 func InitLoggerFromEnv() error {
 	logConfig := LogConfig{
-		Level:      config.GetStringWithDefault("LOG_LEVEL", "info"),
-		Format:     config.GetStringWithDefault("LOG_FORMAT", "json"),
-		Outputs:    strings.Split(config.GetStringWithDefault("LOG_OUTPUT", "stdout"), ","),
-		FilePath:   config.GetStringWithDefault("LOG_FILE_PATH", "/var/log/mcb-api.log"),
+		Level:      config.GetStringWithDefault("logging_level", "info"),
+		Format:     config.GetStringWithDefault("logging_format", "json"),
+		Outputs:    strings.Split(config.GetStringWithDefault("logging_output", "stdout"), ","),
+		FilePath:   config.GetStringWithDefault("logging_file_path", "work/logs/mcb-api.log"),
 		MaxSize:    100,
 		MaxBackups: 3,
 		MaxAge:     28,
@@ -191,11 +191,11 @@ func LogError(err error, traceID, message string, fields map[string]interface{})
 		Err(err).
 		Str("trace_id", traceID).
 		Str("message", message)
-	
+
 	for key, value := range fields {
 		event = event.Interface(key, value)
 	}
-	
+
 	event.Send()
 }
 
@@ -204,11 +204,11 @@ func LogInfo(traceID, message string, fields map[string]interface{}) {
 	event := log.Info().
 		Str("trace_id", traceID).
 		Str("message", message)
-	
+
 	for key, value := range fields {
 		event = event.Interface(key, value)
 	}
-	
+
 	event.Send()
 }
 
@@ -217,10 +217,10 @@ func LogDebug(traceID, message string, fields map[string]interface{}) {
 	event := log.Debug().
 		Str("trace_id", traceID).
 		Str("message", message)
-	
+
 	for key, value := range fields {
 		event = event.Interface(key, value)
 	}
-	
+
 	event.Send()
 }

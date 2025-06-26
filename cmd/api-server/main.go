@@ -15,6 +15,9 @@ func main() {
 		log.Fatal().Err(err).Msg("Failed to initialize configuration")
 	}
 
+	// Dump configuration for debugging
+	config.DumpConfig()
+
 	// Initialize logging system from environment variables
 	err = logging.InitLoggerFromEnv()
 	if err != nil {
@@ -32,8 +35,9 @@ func main() {
 	r := api.SetupRouter()
 
 	// Start server
-	log.Info().Str("port", "8080").Msg("Starting HTTP server")
-	err = r.Run(":8080")
+	port := config.GetString("apiserver_port")
+	log.Info().Str("port", port).Msg("Starting HTTP server")
+	err = r.Run(":" + port)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to start HTTP server")
 	}

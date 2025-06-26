@@ -1,0 +1,2 @@
+go build -o bin/api-server ./cmd/api-server
+
