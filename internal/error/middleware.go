@@ -2,9 +2,9 @@ package error
 
 import (
 	"net/http"
-	"os"
 	"runtime/debug"
 
+	"github.com/andrewhollamon/millioncheckboxes-api/internal/config"
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
 )
@@ -127,7 +127,7 @@ func getTraceID(c *gin.Context) string {
 
 // isDevelopment checks if we're running in development environment
 func isDevelopment() bool {
-	env := os.Getenv("GIN_MODE")
+	env := config.GetString("GIN_MODE")
 	return env == "" || env == "debug"
 }
 

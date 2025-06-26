@@ -2,14 +2,21 @@ package main
 
 import (
 	"github.com/andrewhollamon/millioncheckboxes-api/internal/api"
+	"github.com/andrewhollamon/millioncheckboxes-api/internal/config"
 	"github.com/andrewhollamon/millioncheckboxes-api/internal/logging"
 	"github.com/andrewhollamon/millioncheckboxes-api/internal/memorystore"
 	"github.com/rs/zerolog/log"
 )
 
 func main() {
+	// Initialize configuration
+	err := config.InitConfig()
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to initialize configuration")
+	}
+
 	// Initialize logging system from environment variables
-	err := logging.InitLoggerFromEnv()
+	err = logging.InitLoggerFromEnv()
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to initialize logging system")
 	}

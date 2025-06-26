@@ -1,6 +1,10 @@
 package api
 
 import (
+	"net/http"
+	"time"
+
+	"github.com/andrewhollamon/millioncheckboxes-api/internal/config"
 	apierror "github.com/andrewhollamon/millioncheckboxes-api/internal/error"
 	"github.com/andrewhollamon/millioncheckboxes-api/internal/logging"
 	"github.com/andrewhollamon/millioncheckboxes-api/internal/queueservice"
@@ -8,9 +12,6 @@ import (
 	"github.com/andrewhollamon/millioncheckboxes-api/internal/uuidservice"
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
-	"net/http"
-	"os"
-	"time"
 )
 
 func SetupRouter() *gin.Engine {
@@ -25,7 +26,7 @@ func SetupRouter() *gin.Engine {
 	err := r.SetTrustedProxies(nil)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Error trying to disable trusted proxies")
-		os.Exit(1)
+		return nil
 	}
 
 	// Ping test
@@ -41,21 +42,11 @@ func SetupRouter() *gin.Engine {
 }
 
 func getServerName() string {
-	serverName := os.Getenv("SERVER_NAME")
-	if serverName == "" {
-		return "unknown"
-	} else {
-		return serverName
-	}
+	return config.GetStringWithDefault("SERVER_NAME", "unknown")
 }
 
 func getServerIp() string {
-	serverIp := os.Getenv("SERVER_IP")
-	if serverIp == "" {
-		return "unknown"
-	} else {
-		return serverIp
-	}
+	return config.GetStringWithDefault("SERVER_IP", "unknown")
 }
 
 func getStatus(c *gin.Context) {

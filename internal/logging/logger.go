@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/andrewhollamon/millioncheckboxes-api/internal/config"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )
@@ -111,22 +112,22 @@ func InitLogger(config LogConfig) error {
 
 // InitLoggerFromEnv initializes logger from environment variables
 func InitLoggerFromEnv() error {
-	config := LogConfig{
-		Level:      getEnvOrDefault("LOG_LEVEL", "info"),
-		Format:     getEnvOrDefault("LOG_FORMAT", "json"),
-		Outputs:    strings.Split(getEnvOrDefault("LOG_OUTPUT", "stdout"), ","),
-		FilePath:   getEnvOrDefault("LOG_FILE_PATH", "/var/log/mcb-api.log"),
+	logConfig := LogConfig{
+		Level:      config.GetStringWithDefault("LOG_LEVEL", "info"),
+		Format:     config.GetStringWithDefault("LOG_FORMAT", "json"),
+		Outputs:    strings.Split(config.GetStringWithDefault("LOG_OUTPUT", "stdout"), ","),
+		FilePath:   config.GetStringWithDefault("LOG_FILE_PATH", "/var/log/mcb-api.log"),
 		MaxSize:    100,
 		MaxBackups: 3,
 		MaxAge:     28,
 	}
 
 	// Clean up outputs (remove whitespace)
-	for i, output := range config.Outputs {
-		config.Outputs[i] = strings.TrimSpace(output)
+	for i, output := range logConfig.Outputs {
+		logConfig.Outputs[i] = strings.TrimSpace(output)
 	}
 
-	return InitLogger(config)
+	return InitLogger(logConfig)
 }
 
 // createFileWriter creates a file writer with log rotation
@@ -149,10 +150,7 @@ func createFileWriter(filePath string) (io.Writer, error) {
 
 // getEnvOrDefault gets environment variable or returns default value
 func getEnvOrDefault(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
+	return config.GetStringWithDefault(key, defaultValue)
 }
 
 // WithTraceID adds trace ID to a log event
