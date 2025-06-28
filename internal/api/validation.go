@@ -33,9 +33,15 @@ func validateUserUUID(c *gin.Context) (uuid.UUID, error) {
 		return uuid.Nil, fmt.Errorf("validation error: Missing user UUID parameter")
 	}
 
-	userUuid, err := uuid.Parse(userUuidStr)
+	// we validate first because the parse has a warning
+	err := uuid.Validate(userUuidStr)
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("validation error: User UUID '%v' is not a valid UUID", userUuidStr)
+	}
+
+	userUuid, err := uuid.Parse(userUuidStr)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("validation error: User UUID '%v' can not be parsed into a UUID", userUuidStr)
 	}
 
 	return userUuid, nil

@@ -9,9 +9,6 @@ import (
 	"github.com/andrewhollamon/millioncheckboxes-api/internal/tracing"
 )
 
-// not sure the best way to setup this struct to handle structural changes in future version
-// maybe postfix the name with 10 for 1.0?
-
 type MessageHeader struct {
 	Topic                string `json:"topic"`
 	PayloadSchemaVersion string `json:"payload_schema_version"`
@@ -25,8 +22,8 @@ type CheckboxActionPayload struct {
 	UserUuid    string    `json:"user_uuid"`
 	RequestUuid string    `json:"request_uuid"`
 	RequestTime time.Time `json:"request_time"`
-	Hostname    string    `json:"hostname"`
-	Hostip      string    `json:"hostip"`
+	UserIp      string    `json:"user_ip"`
+	ApiServer   string    `json:"api_server"`
 }
 
 type CheckboxActionMessage struct {
@@ -34,30 +31,33 @@ type CheckboxActionMessage struct {
 	Payload CheckboxActionPayload `json:"payload"`
 }
 
-func ProduceCheckboxActionMessage(payload CheckboxActionPayload) apierror.APIError {
-	return ProduceCheckboxActionMessageWithContext(context.Background(), payload)
+type PublishMessageResult struct {
+	MessageId      string    `json:"message_id"`
+	SequenceNumber string    `json:"sequence_number"`
+	PublishTime    time.Time `json:"publish_time"`
 }
 
-func ProduceCheckboxActionMessageWithContext(ctx context.Context, payload CheckboxActionPayload) apierror.APIError {
+func PublishCheckboxActionMessageWithContext(ctx context.Context, payload CheckboxActionPayload) (PublishMessageResult, apierror.APIError) {
 	traceID := tracing.GetTraceIDFromContext(ctx)
-	
+
 	// Log the queue operation
-	logging.LogQueueOperation(traceID, "produce_checkbox_action", map[string]interface{}{
+	logging.LogQueueOperation(traceID, "publish_checkbox_action", map[string]interface{}{
 		"action":       payload.Action,
 		"checkbox_nbr": payload.CheckboxNbr,
 		"user_uuid":    payload.UserUuid,
 		"request_uuid": payload.RequestUuid,
-		"hostname":     payload.Hostname,
-		"hostip":       payload.Hostip,
+		"user_ip":      payload.UserIp,
+		"api_server":   payload.ApiServer,
+		"trace_id":     traceID,
 	})
-	
+
 	// TODO: Implement actual queue message production
-	// For now, this is a placeholder that simulates success
-	// In a real implementation, this would:
-	// 1. Create the message header
-	// 2. Create the full message with header and payload
-	// 3. Send to the queue (AWS SQS, etc.)
-	// 4. Handle any errors and convert them to APIErrors
-	
-	return nil
+	/*
+		1. Lookup from viper config which queue provider we're using
+		2. Load the specific queue provider into a local variable
+		3. Call the provider to publish the message, handle any errors
+		4. Get the result, and log the result values and success/failure
+	*/
+
+	return PublishMessageResult{}, nil
 }
