@@ -3,6 +3,8 @@ package queueservice
 import (
 	"context"
 	"encoding/json"
+	"time"
+
 	apiconfig "github.com/andrewhollamon/millioncheckboxes-api/internal/config"
 	apierror "github.com/andrewhollamon/millioncheckboxes-api/internal/error"
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -13,6 +15,8 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+type awsQueueProvider struct{}
+
 type SqsMessage struct {
 	MessageId      string
 	ReceiptHandle  string
@@ -22,10 +26,10 @@ type SqsMessage struct {
 	Attributes     map[string]string
 }
 
-func pullMessages(ctx context.Context) ([]SqsMessage, apierror.APIError) {
+func (a *awsQueueProvider) PullMessages(ctx context.Context) ([]Message, apierror.APIError) {
 	myconfig := apiconfig.GetConfig()
 
-	sqsClient, err := newSqsClient(ctx)
+	sqsClient, err := a.newSqsClient(ctx)
 	if err != nil {
 		return nil, apierror.WrapWithCodeFromConstants(err, apierror.ErrQueueUnavailable, "failed to create SQS client")
 	}
@@ -47,9 +51,9 @@ func pullMessages(ctx context.Context) ([]SqsMessage, apierror.APIError) {
 		return nil, apierror.WrapWithCodeFromConstants(sqserr, apierror.ErrQueueUnavailable, "failed to receive message from SQS")
 	}
 
-	sqsMessages := make([]SqsMessage, 0, len(result.Messages))
+	messages := make([]Message, 0, len(result.Messages))
 	for _, resultMessage := range result.Messages {
-		sqsMessage := SqsMessage{
+		msg := Message{
 			MessageId:     aws.ToString(resultMessage.MessageId),
 			ReceiptHandle: aws.ToString(resultMessage.ReceiptHandle),
 			Body:          aws.ToString(resultMessage.Body),
@@ -58,31 +62,44 @@ func pullMessages(ctx context.Context) ([]SqsMessage, apierror.APIError) {
 
 		// Extract FIFO-specific attributes
 		if groupID, ok := resultMessage.Attributes["MessageGroupId"]; ok {
-			sqsMessage.GroupId = groupID
+			msg.GroupId = groupID
 		}
 		if seqNum, ok := resultMessage.Attributes["SequenceNumber"]; ok {
-			sqsMessage.SequenceNumber = seqNum
+			msg.SequenceNumber = seqNum
 		}
 
 		for k, v := range resultMessage.Attributes {
-			sqsMessage.Attributes[k] = v
+			msg.Attributes[k] = v
 		}
 
-		sqsMessages = append(sqsMessages, sqsMessage)
+		messages = append(messages, msg)
 	}
 
-	return sqsMessages, nil
+	return messages, nil
 }
 
-func publishSnsMessage(ctx context.Context, topicArn string, message *CheckboxActionMessage) apierror.APIError {
-	snsClient, err := newSnsClient(ctx)
+func (a *awsQueueProvider) PublishCheckboxAction(ctx context.Context, message *CheckboxActionMessage) (PublishMessageResult, apierror.APIError) {
+	config := apiconfig.GetConfig()
+	topicArn := config.GetString("AWS_SNS_CHECKBOXACTION_TOPIC_ARN")
+
+	result, err := a.publishSnsMessage(ctx, topicArn, message)
 	if err != nil {
-		return apierror.WrapWithCodeFromConstants(err, apierror.ErrQueueUnavailable, "failed to create SNS client")
+		return PublishMessageResult{}, err
+	}
+
+	return result, nil
+}
+
+func (a *awsQueueProvider) publishSnsMessage(ctx context.Context, topicArn string, message *CheckboxActionMessage) (PublishMessageResult, apierror.APIError) {
+	snsClient, err := a.newSnsClient(ctx)
+	if err != nil {
+		return PublishMessageResult{}, apierror.WrapWithCodeFromConstants(err, apierror.ErrQueueUnavailable, "failed to create SNS client")
 	}
 
 	jsonBytes, baseerr := json.Marshal(message)
 	if baseerr != nil {
-		return apierror.WrapWithCodeFromConstants(baseerr, apierror.ErrInternalServer, "failed to marshal message to JSON")
+		log.Error().Err(baseerr).Msg("failed to marshal message to JSON")
+		return PublishMessageResult{}, apierror.WrapWithCodeFromConstants(baseerr, apierror.ErrInternalServer, "failed to marshal message to JSON")
 	}
 
 	publishInput := sns.PublishInput{
@@ -94,17 +111,22 @@ func publishSnsMessage(ctx context.Context, topicArn string, message *CheckboxAc
 
 	pubOut, baseerr := snsClient.Publish(ctx, &publishInput)
 	if baseerr != nil {
-		return apierror.WrapWithCodeFromConstants(baseerr, apierror.ErrQueueUnavailable, "failed to publish message to SNS")
+		log.Error().Err(baseerr).Msg("failed to publish message to SNS")
+		return PublishMessageResult{}, apierror.WrapWithCodeFromConstants(baseerr, apierror.ErrQueueUnavailable, "failed to publish message to SNS")
 	}
 
 	log.Debug().Msg("Message sent to SNS")
-	log.Debug().Str("MessageID: %v\n", *pubOut.MessageId)
-	log.Debug().Str("SequenceNumber: %v\n", *pubOut.SequenceNumber)
+	log.Debug().Str("MessageID", aws.ToString(pubOut.MessageId)).Msg("SNS publish result")
+	log.Debug().Str("SequenceNumber", aws.ToString(pubOut.SequenceNumber)).Msg("SNS publish result")
 
-	return nil
+	return PublishMessageResult{
+		MessageId:      aws.ToString(pubOut.MessageId),
+		SequenceNumber: aws.ToString(pubOut.SequenceNumber),
+		PublishTime:    time.Now(),
+	}, nil
 }
 
-func configAndAuthN(ctx context.Context) (aws.Config, apierror.APIError) {
+func (a *awsQueueProvider) configAndAuthN(ctx context.Context) (aws.Config, apierror.APIError) {
 	cfg, err := config.LoadDefaultConfig(ctx,
 		config.WithSharedConfigProfile("dev"))
 	if err != nil {
@@ -114,8 +136,8 @@ func configAndAuthN(ctx context.Context) (aws.Config, apierror.APIError) {
 	return cfg, nil
 }
 
-func newSnsClient(ctx context.Context) (*sns.Client, apierror.APIError) {
-	cfg, err := configAndAuthN(ctx)
+func (a *awsQueueProvider) newSnsClient(ctx context.Context) (*sns.Client, apierror.APIError) {
+	cfg, err := a.configAndAuthN(ctx)
 	if err != nil {
 		log.Error().Err(err).Msg("failed to create SNS client")
 		return nil, apierror.WrapWithCodeFromConstants(err, apierror.ErrQueueUnavailable, "failed to create SNS client")
@@ -123,8 +145,8 @@ func newSnsClient(ctx context.Context) (*sns.Client, apierror.APIError) {
 	return sns.NewFromConfig(cfg), nil
 }
 
-func newSqsClient(ctx context.Context) (*sqs.Client, apierror.APIError) {
-	cfg, err := configAndAuthN(ctx)
+func (a *awsQueueProvider) newSqsClient(ctx context.Context) (*sqs.Client, apierror.APIError) {
+	cfg, err := a.configAndAuthN(ctx)
 	if err != nil {
 		log.Error().Err(err).Msg("failed to create SQS client")
 		return nil, apierror.WrapWithCodeFromConstants(err, apierror.ErrQueueUnavailable, "failed to create SQS client")

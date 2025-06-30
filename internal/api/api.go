@@ -79,13 +79,13 @@ func checkboxCheck(c *gin.Context) {
 		UserUuid:    userUuid.String(),
 		RequestUuid: requestUuid.String(),
 		RequestTime: time.Now(),
-		Hostname:    getServerName(),
-		Hostip:      getServerIp(),
+		UserIp:      c.RemoteIP(),
+		ApiServer:   getServerName(),
 	}
 
 	// Use context-aware queue service call
 	ctx := tracing.PropagateTraceID(c)
-	apiErr := queueservice.ProduceCheckboxActionMessageWithContext(ctx, payload)
+	_, apiErr := queueservice.PublishCheckboxAction(ctx, payload)
 	if apiErr != nil {
 		apierror.AbortWithAPIError(c, apiErr.WithStackTrace())
 		return
@@ -126,13 +126,13 @@ func checkboxUncheck(c *gin.Context) {
 		UserUuid:    userUuid.String(),
 		RequestUuid: requestUuid.String(),
 		RequestTime: time.Now(),
-		Hostname:    getServerName(),
-		Hostip:      getServerIp(),
+		UserIp:      c.RemoteIP(),
+		ApiServer:   getServerName(),
 	}
 
 	// Use context-aware queue service call
 	ctx := tracing.PropagateTraceID(c)
-	apiErr := queueservice.ProduceCheckboxActionMessageWithContext(ctx, payload)
+	_, apiErr := queueservice.PublishCheckboxAction(ctx, payload)
 	if apiErr != nil {
 		apierror.AbortWithAPIError(c, apiErr.WithStackTrace())
 		return

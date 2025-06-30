@@ -1,0 +1,11 @@
+In this project you will see the package `queueservice` in `internal/queueservice` folder.
+
+This has the following two files `queueservice.go` and `awsqueueservice.go`.
+
+Think about how to do a service locator approach, where the `queueservice.go` is the only exported functions.
+
+This code will use the config from `internal/config.go` to check the value of an environment key `QUEUE_PROVIDER`.
+
+If the value is `aws` then the code will use `internal/queueservice/awsqueueservice.go` for its implementation.
+
+Show me how that code would look.

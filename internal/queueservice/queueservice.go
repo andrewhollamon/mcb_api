@@ -2,8 +2,11 @@ package queueservice
 
 import (
 	"context"
+	"fmt"
+	"sync"
 	"time"
 
+	apiconfig "github.com/andrewhollamon/millioncheckboxes-api/internal/config"
 	apierror "github.com/andrewhollamon/millioncheckboxes-api/internal/error"
 	"github.com/andrewhollamon/millioncheckboxes-api/internal/logging"
 	"github.com/andrewhollamon/millioncheckboxes-api/internal/tracing"
@@ -37,7 +40,42 @@ type PublishMessageResult struct {
 	PublishTime    time.Time `json:"publish_time"`
 }
 
-func PublishCheckboxActionMessageWithContext(ctx context.Context, payload CheckboxActionPayload) (PublishMessageResult, apierror.APIError) {
+type QueueProvider interface {
+	PublishCheckboxAction(ctx context.Context, message *CheckboxActionMessage) (PublishMessageResult, apierror.APIError)
+	PullMessages(ctx context.Context) ([]Message, apierror.APIError)
+}
+
+type Message struct {
+	MessageId      string
+	ReceiptHandle  string
+	Body           string
+	GroupId        string
+	SequenceNumber string
+	Attributes     map[string]string
+}
+
+var (
+	providerInstance QueueProvider
+	providerOnce     sync.Once
+)
+
+func getQueueProvider() QueueProvider {
+	providerOnce.Do(func() {
+		config := apiconfig.GetConfig()
+		queueProvider := config.GetString("QUEUE_PROVIDER")
+
+		switch queueProvider {
+		case "aws":
+			providerInstance = &awsQueueProvider{}
+		default:
+			// Default to AWS if not specified or invalid
+			providerInstance = &awsQueueProvider{}
+		}
+	})
+	return providerInstance
+}
+
+func PublishCheckboxAction(ctx context.Context, payload CheckboxActionPayload) (PublishMessageResult, apierror.APIError) {
 	traceID := tracing.GetTraceIDFromContext(ctx)
 
 	// Log the queue operation
@@ -51,13 +89,37 @@ func PublishCheckboxActionMessageWithContext(ctx context.Context, payload Checkb
 		"trace_id":     traceID,
 	})
 
-	// TODO: Implement actual queue message production
-	/*
-		1. Lookup from viper config which queue provider we're using
-		2. Load the specific queue provider into a local variable
-		3. Call the provider to publish the message, handle any errors
-		4. Get the result, and log the result values and success/failure
-	*/
+	// Create the message with header
+	message := &CheckboxActionMessage{
+		Header: MessageHeader{
+			Topic:                "checkbox-actions",
+			PayloadSchemaVersion: "1.0",
+			GroupId:              fmt.Sprintf("checkbox-%d", payload.CheckboxNbr),
+			DeduplicationId:      payload.RequestUuid,
+		},
+		Payload: payload,
+	}
 
-	return PublishMessageResult{}, nil
+	// Get the provider and publish the message
+	provider := getQueueProvider()
+	result, err := provider.PublishCheckboxAction(ctx, message)
+	if err != nil {
+		logging.LogQueueOperation(traceID, "publish_checkbox_action_failed", map[string]interface{}{
+			"error": err.Error(),
+		})
+		return PublishMessageResult{}, err
+	}
+
+	// Log successful publication
+	logging.LogQueueOperation(traceID, "publish_checkbox_action_success", map[string]interface{}{
+		"message_id":      result.MessageId,
+		"sequence_number": result.SequenceNumber,
+	})
+
+	return result, nil
+}
+
+func PullMessagesWithContext(ctx context.Context) ([]Message, apierror.APIError) {
+	provider := getQueueProvider()
+	return provider.PullMessages(ctx)
 }
