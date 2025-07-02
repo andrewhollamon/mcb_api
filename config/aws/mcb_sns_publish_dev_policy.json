@@ -1,0 +1,21 @@
+{
+  "Version": "2012-10-17",
+  "Id": "mcb-sns-publish-dev-policy",
+  "Statement": [
+    {
+      "Sid": "mcbSnsPublishDevStatement",
+      "Effect": "Allow",
+      "Action": [
+        "sns:Publish",
+        "SNS:ListSubscriptionsByTopic",
+        "SNS:GetTopicAttributes",
+        "SNS:Subscribe"
+      ],
+      "Resource": [
+        "arn:aws:sns:us-east-1:616293268143:mcb-checkboxAction-dev.fifo",
+        "arn:aws:sns:us-east-1:616293268143:mcb-checkboxActionResult-dev.fifo",
+        "arn:aws:sns:us-east-1:616293268143:mcb-checkboxActionFailure-dev.fifo"
+      ]
+    }
+  ]
+}

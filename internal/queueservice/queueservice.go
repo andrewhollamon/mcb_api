@@ -13,7 +13,6 @@ import (
 )
 
 type MessageHeader struct {
-	Topic                string `json:"topic"`
 	PayloadSchemaVersion string `json:"payload_schema_version"`
 	GroupId              string `json:"group_id"`
 	DeduplicationId      string `json:"deduplication_id"`
@@ -92,7 +91,6 @@ func PublishCheckboxAction(ctx context.Context, payload CheckboxActionPayload) (
 	// Create the message with header
 	message := &CheckboxActionMessage{
 		Header: MessageHeader{
-			Topic:                "checkbox-actions",
 			PayloadSchemaVersion: "1.0",
 			GroupId:              fmt.Sprintf("checkbox-%d", payload.CheckboxNbr),
 			DeduplicationId:      payload.RequestUuid,

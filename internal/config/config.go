@@ -19,8 +19,13 @@ const (
 // var globalConfig map[string]any
 var globalConfig *viper.Viper
 
-// InitConfig initializes the configuration using Viper
+// InitConfig initializes the configuration from default config folder and files
 func InitConfig() error {
+	return InitConfigWithFolder("", "")
+}
+
+// InitConfigWithFolder initializes the configuration usi
+func InitConfigWithFolder(configfolder string, configfile string) error {
 	v := viper.New()
 
 	// default the environment so we know which .env.* file to pick up from non-prod environments
@@ -36,8 +41,16 @@ func InitConfig() error {
 	fmt.Println("Environment:", v.GetString("ENVIRONMENT"))
 
 	// Set config name and paths for non-prod config (prod pulls from OS environment variables)
-	v.AddConfigPath("./config")
-	v.SetConfigName(v.GetString("ENVIRONMENT"))
+	if configfolder == "" {
+		v.AddConfigPath("./config")
+	} else {
+		v.AddConfigPath(configfolder)
+	}
+	if configfile == "" {
+		v.SetConfigName(v.GetString("ENVIRONMENT"))
+	} else {
+		v.SetConfigName(configfile)
+	}
 	v.SetConfigType("env")
 
 	// Set environment variable prefix and enable automatic env reading
