@@ -2,6 +2,7 @@ package queueservice
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
@@ -41,7 +42,8 @@ type PublishMessageResult struct {
 
 type QueueProvider interface {
 	PublishCheckboxAction(ctx context.Context, message *CheckboxActionMessage) (PublishMessageResult, apierror.APIError)
-	PullMessages(ctx context.Context) ([]Message, apierror.APIError)
+	PullCheckboxActionMessages(ctx context.Context) ([]Message, apierror.APIError)
+	DeleteMessage(ctx context.Context, message *Message) apierror.APIError
 }
 
 type Message struct {
@@ -57,6 +59,14 @@ var (
 	providerInstance QueueProvider
 	providerOnce     sync.Once
 )
+
+func (m *Message) UnmarshalBody(v interface{}) apierror.APIError {
+	err := json.Unmarshal([]byte(m.Body), v)
+	if err != nil {
+		return apierror.WrapWithCodeFromConstants(err, apierror.ErrInternalServer, fmt.Sprintf("Could not unmarshal message json into type %T", v))
+	}
+	return nil
+}
 
 func getQueueProvider() QueueProvider {
 	providerOnce.Do(func() {
@@ -117,7 +127,20 @@ func PublishCheckboxAction(ctx context.Context, payload CheckboxActionPayload) (
 	return result, nil
 }
 
-func PullMessagesWithContext(ctx context.Context) ([]Message, apierror.APIError) {
+func PullCheckboxActionMessages(ctx context.Context) ([]Message, apierror.APIError) {
+	logging.LogQueueOperation(tracing.GetTraceIDFromContext(ctx), "pull_checkbox_action_messages", nil)
 	provider := getQueueProvider()
-	return provider.PullMessages(ctx)
+	messages, err := provider.PullCheckboxActionMessages(ctx)
+
+	return messages, err
+}
+
+func DeleteMessage(ctx context.Context, message *Message) apierror.APIError {
+	logging.LogQueueOperation(tracing.GetTraceIDFromContext(ctx), "delete_message", map[string]interface{}{
+		"message_id":      message.MessageId,
+		"sequence_number": message.SequenceNumber,
+	})
+
+	provider := getQueueProvider()
+	return provider.DeleteMessage(ctx, message)
 }
