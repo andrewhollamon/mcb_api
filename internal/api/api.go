@@ -1,7 +1,6 @@
 package api
 
 import (
-	"fmt"
 	"github.com/andrewhollamon/millioncheckboxes-api/internal/dbservice"
 	"net/http"
 	"time"
@@ -51,14 +50,33 @@ func getServerIp() string {
 	return config.GetStringWithDefault("SERVER_IP", "unknown")
 }
 
-func getStatus(c *gin.Context, checkboxNbr int) (bool, time.Time, apierror.APIError) {
-	checked, lastUpdated, err := dbservice.GetCheckboxStatus(c, checkboxNbr)
+func getStatus(c *gin.Context) {
+	logging.LogAPICall(c, "get_status", map[string]interface{}{
+		"checkbox_nbr": c.Param("checkboxNbr"),
+	})
+
+	checkboxNbr, err := validateCheckboxNumber(c)
 	if err != nil {
-		log.Error().Err(err).Msgf("failed to get checkbox status for checkbox %d", checkboxNbr)
-		return false, time.UnixMilli(0), apierror.WrapWithCodeFromConstants(err, apierror.ErrDatabaseError, fmt.Sprintf("failed to get checkbox status for checkbox %d", checkboxNbr))
+		apiErr := apierror.ValidationError(err.Error())
+		apierror.AbortWithAPIError(c, apiErr)
+		return
 	}
 
-	return checked, lastUpdated, nil
+	checked, lastUpdated, apierr := dbservice.GetCheckboxStatus(c, checkboxNbr)
+	if apierr != nil {
+		log.Error().Err(err).Msgf("failed to get checkbox status for checkbox %d", checkboxNbr)
+		apierror.AbortWithAPIError(c, apierr)
+		return
+	}
+
+	response := gin.H{
+		"checked":      checked,
+		"last_updated": lastUpdated,
+	}
+
+	logging.LogAPIResponse(c, "checkbox_check", http.StatusOK, response)
+	c.JSON(http.StatusOK, response)
+	return
 }
 
 func checkboxCheck(c *gin.Context) {
