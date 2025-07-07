@@ -1,8 +1,10 @@
 package main
 
 import (
+	"context"
 	"github.com/andrewhollamon/millioncheckboxes-api/internal/api"
 	"github.com/andrewhollamon/millioncheckboxes-api/internal/config"
+	"github.com/andrewhollamon/millioncheckboxes-api/internal/dbservice"
 	"github.com/andrewhollamon/millioncheckboxes-api/internal/logging"
 	"github.com/andrewhollamon/millioncheckboxes-api/internal/memorystore"
 	"github.com/rs/zerolog/log"
@@ -25,6 +27,15 @@ func main() {
 	}
 
 	log.Info().Msg("Starting MCB API Server")
+
+	log.Info().Msg("Initializing database connection pool")
+	apierr := dbservice.InitDbPool(context.Background())
+	if apierr != nil {
+		log.Fatal().Err(apierr).Msg("Failed to initialize database connection pool")
+		panic("Failed to initialize database connection pool")
+	}
+	defer dbservice.ClosePool()
+	log.Info().Msg("Database connection pool initialized")
 
 	// Setup the memory store
 	log.Info().Msg("Initializing memory store")

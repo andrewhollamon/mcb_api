@@ -1,0 +1,32 @@
+Create functions to implement general purpose database operations for postgresql 17.x.
+
+These functions will be put in `internal/dbservice/postgreservice.go`.
+
+For the postgresql driver, use `github.com/jackc/pgx/v5` and `github.com/jackc/pgx/v5/pgxpool`.
+
+Use connection pooling by default in all the connection setups. Explicitly set the connection pool configurable options here to a static default value, I will move those to environment variables later.
+
+For the database functions, the Context will be passed in, and originates from the `gin` apiserver.
+
+Connectivity can be retrieved via config variables using syntax such as:
+
+```go
+import apiconfig "github.com/andrewhollamon/millioncheckboxes-api/internal/config"
+appconfig := apiconfig.GetConfig()
+dburl := appconfig.GetString("DATABASE_URL")
+dbuser := appconfig.GetString("DATABASE_USER")
+dbpassword := appconfig.GetString("DATABASE_PASSWORD")
+```
+
+Only use prepared statements for SQL.
+
+Implement the following public functions:
+
+- query()
+    - this runs a query that returns zero to many rows
+    - parameterized with zero to many parameters
+- exec()
+    - this runs a query that returns zero or one return value
+    - parameterized with zero to many parameters
+    - this needs to also return a "records affected" value
+- function that allows us access to a pool connection so we can explicitly use transactions

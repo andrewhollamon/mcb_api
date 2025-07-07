@@ -1,2 +1,2 @@
-drop schema millcheck
+drop schema MCB
 ;

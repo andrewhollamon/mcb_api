@@ -28,7 +28,7 @@ type SqsMessage struct {
 }
 
 func (m *SqsMessage) UnmarshalBody(v interface{}) apierror.APIError {
-	err := json.Unmarshal([]byte(m.Body), &v)
+	err := json.Unmarshal([]byte(m.Body), v)
 	if err != nil {
 		return apierror.WrapWithCodeFromConstants(err, apierror.ErrInternalServer, fmt.Sprintf("Could not unmarshal message json into type %T", v))
 	}

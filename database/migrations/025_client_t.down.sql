@@ -1,2 +1,2 @@
-drop table CLIENT_T
+drop table MCB.CLIENT_T
 ;
