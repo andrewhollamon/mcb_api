@@ -1,6 +1,8 @@
 package api
 
 import (
+	"fmt"
+	"github.com/andrewhollamon/millioncheckboxes-api/internal/dbservice"
 	"net/http"
 	"time"
 
@@ -49,8 +51,14 @@ func getServerIp() string {
 	return config.GetStringWithDefault("SERVER_IP", "unknown")
 }
 
-func getStatus(c *gin.Context) {
-	// check caching DB lookup service
+func getStatus(c *gin.Context, checkboxNbr int) (bool, time.Time, apierror.APIError) {
+	checked, lastUpdated, err := dbservice.GetCheckboxStatus(c, checkboxNbr)
+	if err != nil {
+		log.Error().Err(err).Msgf("failed to get checkbox status for checkbox %d", checkboxNbr)
+		return false, time.UnixMilli(0), apierror.WrapWithCodeFromConstants(err, apierror.ErrDatabaseError, fmt.Sprintf("failed to get checkbox status for checkbox %d", checkboxNbr))
+	}
+
+	return checked, lastUpdated, nil
 }
 
 func checkboxCheck(c *gin.Context) {
