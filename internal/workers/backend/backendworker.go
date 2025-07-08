@@ -7,9 +7,14 @@ import (
 	"github.com/andrewhollamon/millioncheckboxes-api/internal/workers"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
+	"runtime"
+	"time"
 )
 
 func ConsumeCheckboxActionQueue(ctx context.Context) workers.QueueConsumerResult {
+	startTime := time.Now()
+	initialGoroutines := runtime.NumGoroutine()
+
 	messages, err := queueservice.PullCheckboxActionMessages(ctx)
 	if err != nil {
 		log.Error().Err(err).Msg("failed to pull messages from checkbox action queue")
@@ -27,12 +32,27 @@ func ConsumeCheckboxActionQueue(ctx context.Context) workers.QueueConsumerResult
 		}
 	}
 
+	// This is a sanity check in case we change queue providers, to something that can return a very large number
+	// of messages in one queue consume batch. The code below will spawn as many goroutines as there are messages
+	// in this batch, so lets just put a guard here, just in case.
+	if len(messages) > 100 {
+		log.Error().Msgf("queue consumer received %d messages, this is too many", len(messages))
+		return workers.QueueConsumerResult{
+			Result:       workers.ResultEnum.Failure,
+			NumProcessed: 0,
+		}
+	}
+	
 	result := workers.ResultEnum.Success
 	processed := 0
+	failed := 0
 	messageCount := len(messages)
 	c := make(chan workers.Result, messageCount)
+	defer close(c)
 
 	// kick off each received queue message on separate goroutine, since they're largely io bound
+	// NOTE: This looks like it can spawn infinite goroutines, but it actually cannot, since the call to
+	// queueservice.PullCheckboxActionMessages above can return a max of 10 messages at a time.
 	for _, message := range messages {
 		go func(msg queueservice.Message) {
 			defer func() {
@@ -51,9 +71,18 @@ func ConsumeCheckboxActionQueue(ctx context.Context) workers.QueueConsumerResult
 		if innerresult == workers.ResultEnum.Success {
 			processed++
 		} else {
+			failed++
 			result = workers.ResultEnum.Failure
 		}
 	}
+
+	// Log metrics
+	processingTime := time.Since(startTime)
+	finalGoroutines := runtime.NumGoroutine()
+	goroutinesDelta := finalGoroutines - initialGoroutines
+
+	log.Info().Msgf("Queue processing metrics: processed=%d, failed=%d, duration=%v, goroutines_start=%d, goroutines_end=%d, goroutines_delta=%d",
+		processed, failed, processingTime, initialGoroutines, finalGoroutines, goroutinesDelta)
 
 	return workers.QueueConsumerResult{
 		Result:       result,

@@ -124,8 +124,8 @@ func GetFullCheckboxStore(ctx context.Context) (*[]bool, apierror.APIError) {
 	}
 
 	// if we didnt get exactly 1,000,000 rows, then something is badly wrong
-	if i != 999999 {
-		log.Error().Msgf("expected to get %d checkboxes, got %d", 999999, i)
+	if i != 1000000 {
+		log.Error().Msgf("expected to get %d checkboxes, got %d", 1000000, i)
 		return nil, apierror.NewAPIErrorFromCode(apierror.ErrDatabaseError, fmt.Sprintf("expected to get %d checkboxes, got %d", 999999, i))
 	}
 
