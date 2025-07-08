@@ -13,6 +13,11 @@ import (
 	"github.com/andrewhollamon/millioncheckboxes-api/internal/tracing"
 )
 
+const (
+	CheckboxActionChecked   = "checked"
+	CheckboxActionUnchecked = "unchecked"
+)
+
 type MessageHeader struct {
 	PayloadSchemaVersion string `json:"payload_schema_version"`
 	GroupId              string `json:"group_id"`
