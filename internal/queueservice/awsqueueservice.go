@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 	"time"
 
 	apiconfig "github.com/andrewhollamon/millioncheckboxes-api/internal/config"
@@ -16,7 +17,11 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-type awsQueueProvider struct{}
+type awsQueueProvider struct{
+	snsClient *sns.Client
+	sqsClient *sqs.Client
+	mu        sync.RWMutex
+}
 
 type SqsMessage struct {
 	MessageId      string
@@ -38,12 +43,12 @@ func (m *SqsMessage) UnmarshalBody(v interface{}) apierror.APIError {
 func (a *awsQueueProvider) PullCheckboxActionMessages(ctx context.Context) ([]Message, apierror.APIError) {
 	appconfig := apiconfig.GetConfig()
 
-	sqsClient, err := a.newSqsClient(ctx, appconfig.GetString("AWS_AUTH_PROFILE_NAME"))
+	sqsClient, err := a.getSqsClient(ctx, appconfig.GetString("AWS_AUTH_PROFILE_NAME"))
 	if err != nil {
-		log.Error().Err(err).Msg("failed to create SQS client")
-		return nil, apierror.WrapWithCodeFromConstants(err, apierror.ErrQueueUnavailable, "failed to create SQS client")
+		log.Error().Err(err).Msg("failed to get SQS client")
+		return nil, apierror.WrapWithCodeFromConstants(err, apierror.ErrQueueUnavailable, "failed to get SQS client")
 	}
-	log.Debug().Msg("SQS client created")
+	log.Debug().Msg("SQS client obtained")
 
 	queueUrl := appconfig.GetString("AWS_SQS_CHECKBOXACTION_BASE_URL") + appconfig.GetString("AWS_SQS_CHECKBOXACTION_CONSUMER1")
 	log.Debug().Msgf("Pulling messages from SQS queue %s", queueUrl)
@@ -98,12 +103,12 @@ func (a *awsQueueProvider) DeleteMessage(ctx context.Context, message *Message) 
 	queueUrl := appconfig.GetString("AWS_SQS_CHECKBOXACTION_BASE_URL") + appconfig.GetString("AWS_SQS_CHECKBOXACTION_CONSUMER1")
 	log.Debug().Msgf("Preparing to delete messages from SQS queue %s", queueUrl)
 
-	sqsClient, apierr := a.newSqsClient(ctx, appconfig.GetString("AWS_AUTH_PROFILE_NAME"))
+	sqsClient, apierr := a.getSqsClient(ctx, appconfig.GetString("AWS_AUTH_PROFILE_NAME"))
 	if apierr != nil {
-		log.Error().Err(apierr).Msg("failed to create SQS client")
-		return apierror.WrapWithCodeFromConstants(apierr, apierror.ErrQueueUnavailable, "failed to create SQS client")
+		log.Error().Err(apierr).Msg("failed to get SQS client")
+		return apierror.WrapWithCodeFromConstants(apierr, apierror.ErrQueueUnavailable, "failed to get SQS client")
 	}
-	log.Debug().Msg("SQS client created")
+	log.Debug().Msg("SQS client obtained")
 
 	_, err := sqsClient.DeleteMessage(ctx, &sqs.DeleteMessageInput{
 		QueueUrl:      aws.String(queueUrl),
@@ -121,9 +126,9 @@ func (a *awsQueueProvider) PublishCheckboxAction(ctx context.Context, message *C
 	appconfig := apiconfig.GetConfig()
 	topicArn := appconfig.GetString("AWS_SNS_CHECKBOXACTION_TOPIC_ARN")
 
-	snsClient, err := a.newSnsClient(ctx, appconfig.GetString("AWS_AUTH_PROFILE_NAME"))
+	snsClient, err := a.getSnsClient(ctx, appconfig.GetString("AWS_AUTH_PROFILE_NAME"))
 	if err != nil {
-		return PublishMessageResult{}, apierror.WrapWithCodeFromConstants(err, apierror.ErrQueueUnavailable, "failed to create SNS client")
+		return PublishMessageResult{}, apierror.WrapWithCodeFromConstants(err, apierror.ErrQueueUnavailable, "failed to get SNS client")
 	}
 
 	jsonBytes, baseerr := json.Marshal(message)
@@ -139,7 +144,7 @@ func (a *awsQueueProvider) PublishCheckboxAction(ctx context.Context, message *C
 		MessageDeduplicationId: aws.String(message.Header.DeduplicationId),
 	}
 
-	fmt.Println("Publishing message to SNS")
+	log.Debug().Msg("Publishing message to SNS")
 	pubOut, baseerr := snsClient.Publish(ctx, &publishInput)
 	if baseerr != nil {
 		log.Error().Err(baseerr).Msg("failed to publish message to SNS")
@@ -165,27 +170,58 @@ func (a *awsQueueProvider) configAndAuthN(ctx context.Context, awsprofilename st
 		log.Error().Err(err).Msg("failed to load AWS Config")
 		return cfg, apierror.WrapWithCodeFromConstants(err, apierror.ErrQueueUnavailable, "failed to load AWS Config")
 	}
-	fmt.Println("AWS config loaded")
+	log.Debug().Msg("AWS config loaded")
 	return cfg, nil
 }
 
-func (a *awsQueueProvider) newSnsClient(ctx context.Context, awsprofilename string) (*sns.Client, apierror.APIError) {
+func (a *awsQueueProvider) getSnsClient(ctx context.Context, awsprofilename string) (*sns.Client, apierror.APIError) {
+	a.mu.RLock()
+	if a.snsClient != nil {
+		a.mu.RUnlock()
+		return a.snsClient, nil
+	}
+	a.mu.RUnlock()
+
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	// Double-check pattern
+	if a.snsClient != nil {
+		return a.snsClient, nil
+	}
+
 	cfg, err := a.configAndAuthN(ctx, awsprofilename)
 	if err != nil {
 		log.Error().Err(err).Msg("failed to create SNS client")
 		return nil, apierror.WrapWithCodeFromConstants(err, apierror.ErrQueueUnavailable, "failed to create SNS client")
 	}
-	client := sns.NewFromConfig(cfg)
-	fmt.Println("SNS client created", client)
-	return client, nil
+	a.snsClient = sns.NewFromConfig(cfg)
+	log.Debug().Msg("SNS client created and cached")
+	return a.snsClient, nil
 }
 
-func (a *awsQueueProvider) newSqsClient(ctx context.Context, awsprofilename string) (*sqs.Client, apierror.APIError) {
+func (a *awsQueueProvider) getSqsClient(ctx context.Context, awsprofilename string) (*sqs.Client, apierror.APIError) {
+	a.mu.RLock()
+	if a.sqsClient != nil {
+		a.mu.RUnlock()
+		return a.sqsClient, nil
+	}
+	a.mu.RUnlock()
+
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	// Double-check pattern
+	if a.sqsClient != nil {
+		return a.sqsClient, nil
+	}
+
 	cfg, err := a.configAndAuthN(ctx, awsprofilename)
 	if err != nil {
 		log.Error().Err(err).Msg("failed to create SQS client")
 		return nil, apierror.WrapWithCodeFromConstants(err, apierror.ErrQueueUnavailable, "failed to create SQS client")
 	}
-
-	return sqs.NewFromConfig(cfg), nil
+	a.sqsClient = sqs.NewFromConfig(cfg)
+	log.Debug().Msg("SQS client created and cached")
+	return a.sqsClient, nil
 }

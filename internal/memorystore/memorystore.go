@@ -9,7 +9,7 @@ import (
 	"sync"
 )
 
-var mu sync.Mutex // guards memoryStore
+var mu sync.RWMutex // guards memoryStore
 var store []bool
 var storeLen = 0
 var initialized = false
@@ -32,8 +32,9 @@ func GetCheckboxStatus(checkboxNbr int) (bool, error) {
 		return false, apierror.InternalError(fmt.Sprintf("invalid checkbox number for call GetCheckboxStatus(%d", checkboxNbr))
 	}
 
-	// dont need to lock for reads
+	mu.RLock()
 	checked := store[checkboxNbr]
+	mu.RUnlock()
 
 	return checked, nil
 }
@@ -59,6 +60,7 @@ func LoadCheckboxesFromStore(ctx context.Context) apierror.APIError {
 
 	mu.Lock()
 	store = *newMemoryStore
+	storeLen = len(store)
 	mu.Unlock()
 
 	return nil
