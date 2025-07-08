@@ -20,8 +20,8 @@ func UpdateCheckbox(ctx context.Context, checkboxNbr int, checked bool, userUuid
 	}
 
 	// Ensure cleanup - rollback on error
-	defer func() {
-		if err != nil {
+	defer func(err2 error) {
+		if err2 != nil {
 			rollbackerr := RollbackTx(ctx, tx)
 			if rollbackerr != nil {
 				log.Error().Err(rollbackerr).Msgf(
@@ -29,7 +29,7 @@ func UpdateCheckbox(ctx context.Context, checkboxNbr int, checked bool, userUuid
 				)
 			}
 		}
-	}()
+	}(err)
 
 	// Update CHECKBOX_T table
 	_, err = ExecTx(ctx, tx, "UPDATE MCB.CHECKBOX_T "+
@@ -114,19 +114,18 @@ func GetFullCheckboxStore(ctx context.Context) (*[]bool, apierror.APIError) {
 	// testing will determine how much of a problem this is.
 	i := 0
 	for rows.Next() {
-		checked, err := rows.Values()
+		err := rows.Scan(&checkboxes[i])
 		if err != nil {
-			log.Error().Err(err).Msgf("failed to read value from result inside GetFullCheckboxStore")
-			return nil, apierror.WrapWithCodeFromConstants(err, apierror.ErrDatabaseError, "failed to read value from result inside GetFullCheckboxStore")
+			log.Error().Err(err).Msgf("failed to scan value from result inside GetFullCheckboxStore")
+			return nil, apierror.WrapWithCodeFromConstants(err, apierror.ErrDatabaseError, "failed to scan value from result inside GetFullCheckboxStore")
 		}
-		checkboxes[i] = checked[0].(bool)
 		i++
 	}
 
 	// if we didnt get exactly 1,000,000 rows, then something is badly wrong
 	if i != 1000000 {
 		log.Error().Msgf("expected to get %d checkboxes, got %d", 1000000, i)
-		return nil, apierror.NewAPIErrorFromCode(apierror.ErrDatabaseError, fmt.Sprintf("expected to get %d checkboxes, got %d", 999999, i))
+		return nil, apierror.NewAPIErrorFromCode(apierror.ErrDatabaseError, fmt.Sprintf("expected to get %d checkboxes, got %d", 1000000, i))
 	}
 
 	// Check for any errors during iteration
