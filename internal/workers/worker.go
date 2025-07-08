@@ -2,12 +2,18 @@ package workers
 
 type Result int
 
+const (
+	ResultSuccess Result = iota
+	ResultFailure
+)
+
+// Legacy enum for backward compatibility
 var ResultEnum = struct {
 	Success Result
 	Failure Result
 }{
-	Success: 0,
-	Failure: 1,
+	Success: ResultSuccess,
+	Failure: ResultFailure,
 }
 
 type QueueConsumerResult struct {

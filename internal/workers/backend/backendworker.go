@@ -29,12 +29,20 @@ func ConsumeCheckboxActionQueue(ctx context.Context) workers.QueueConsumerResult
 
 	result := workers.ResultEnum.Success
 	processed := 0
-	c := make(chan workers.Result)
 	messageCount := len(messages)
+	c := make(chan workers.Result, messageCount)
 
 	// kick off each received queue message on separate goroutine, since they're largely io bound
 	for _, message := range messages {
-		go processCheckboxActionMessage(ctx, message, c)
+		go func(msg queueservice.Message) {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Error().Msgf("panic in processCheckboxActionMessage: %v", r)
+					c <- workers.ResultEnum.Failure
+				}
+			}()
+			processCheckboxActionMessage(ctx, msg, c)
+		}(message)
 	}
 
 	// process all the message results
@@ -67,13 +75,13 @@ func processCheckboxActionMessage(ctx context.Context, message queueservice.Mess
 	payload := body.Payload
 	userUuid, baseerr := uuid.Parse(payload.UserUuid)
 	if baseerr != nil {
-		log.Error().Err(baseerr).Msgf("failed to parse user uuid '%s'", userUuid)
+		log.Error().Err(baseerr).Msgf("failed to parse user uuid '%s'", payload.UserUuid)
 		c <- workers.ResultEnum.Failure
 		return
 	}
 	requestUuid, baseerr := uuid.Parse(payload.RequestUuid)
 	if baseerr != nil {
-		log.Error().Err(baseerr).Msgf("failed to parse request uuid '%s'", requestUuid)
+		log.Error().Err(baseerr).Msgf("failed to parse request uuid '%s'", payload.RequestUuid)
 		c <- workers.ResultEnum.Failure
 		return
 	}
