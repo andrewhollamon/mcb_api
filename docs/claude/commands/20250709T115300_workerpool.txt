@@ -1,0 +1,296 @@
+Using golang 1.24 or later, show me some example code for the following situation:
+
+ - 1 main goroutine that is pulling messages from a queue (dont show the queue processing, just assume it)
+ - That main goroutine will send the message to 1 of 10 different workers for processing. The selection of which of the 10 workers is based on the message payload
+ - 10 workers ready to do processing. I assume these will be goroutines, as their work will mostly be io bound doing database updates and queue actions
+ - This will be part of a headless app, so there's no web context, but you can assume there is a context available.
+ - The system, including the 10 workers, should all gracefully shutdown AFTER processing their current payload, if a shutdown is sent
+ - These workers and the main goroutine will all run forever, so we need to be very careful about resource leaks
+ - Assume we already have libraries for simple database operations and queue operations, dont show any of that code.
+ - The workers need to receive payloads to process, and they should return completion and/or errors back to the main goroutine. The main goroutine will collect this info as processing statistics and log it out periodically.
+
+(results put into workerpool.go)
+
+===================
+In this code, if messages are being sent to a worker faster than the worker can process them, where do the unprocessed messages exist?  Are they in the Worker.msgChan channel?  Do I need to increase the size of the channel to how many messages may buffer?  What happens if the channel is full but more messages are added, does it block on the channel send?
+===================
+
+You're absolutely right to be concerned about this! Let me explain the message flow and buffering:
+
+## Where Messages Buffer
+
+Yes, unprocessed messages queue up in each worker's `msgChan` channel. In the current code:
+
+```go
+msgChan: make(chan Message, 1), // Only 1 message buffer!
+```
+
+This is quite small and will cause problems under load.
+
+## What Happens When Channel is Full
+
+The current code uses a **non-blocking send** with a `select` statement:
+
+```go
+func (wp *WorkerPool) dispatch(msg Message) error {
+    workerIndex := wp.selectWorker(msg)
+    worker := wp.workers[workerIndex]
+
+    // Non-blocking send
+    select {
+    case worker.msgChan <- msg:
+        return nil
+    default:
+        return fmt.Errorf("worker %d queue is full", workerIndex)
+    }
+}
+```
+
+This means:
+- If the channel is full, the message is **dropped** and an error is returned
+- The main goroutine logs the error but continues
+- **Messages are lost!**
+
+## Better Solutions
+
+Here are several approaches to handle this properly:
+
+### 1. **Increase Channel Buffer Size**
+
+```go
+func NewWorker(id int, bufferSize int, resultCh chan<- Result, wg *sync.WaitGroup) *Worker {
+    return &Worker{
+        id:       id,
+        msgChan:  make(chan Message, bufferSize), // Larger buffer
+        resultCh: resultCh,
+        quit:     make(chan struct{}),
+        wg:       wg,
+    }
+}
+
+// Create with larger buffers
+const workerBufferSize = 1000
+wp.workers[i] = NewWorker(i, workerBufferSize, wp.resultCh, &wp.wg)
+```
+
+### 2. **Blocking Send (Don't Drop Messages)**
+
+```go
+func (wp *WorkerPool) dispatch(ctx context.Context, msg Message) error {
+    workerIndex := wp.selectWorker(msg)
+    worker := wp.workers[workerIndex]
+
+    // Blocking send with context
+    select {
+    case worker.msgChan <- msg:
+        return nil
+    case <-ctx.Done():
+        return ctx.Err()
+    }
+}
+```
+
+### 3. **Dynamic Worker Pool with Queue Monitoring**
+
+```go
+type Worker struct {
+    id         int
+    msgChan    chan Message
+    resultCh   chan<- Result
+    quit       chan struct{}
+    wg         *sync.WaitGroup
+    queueDepth int32 // Atomic counter
+}
+
+func (w *Worker) start(ctx context.Context) {
+    w.wg.Add(1)
+    go func() {
+        defer w.wg.Done()
+
+        for {
+            select {
+            case msg := <-w.msgChan:
+                atomic.AddInt32(&w.queueDepth, -1)
+                w.processMessage(ctx, msg)
+
+            case <-ctx.Done():
+                return
+            }
+        }
+    }()
+}
+
+func (wp *WorkerPool) dispatch(ctx context.Context, msg Message) error {
+    workerIndex := wp.selectWorker(msg)
+    worker := wp.workers[workerIndex]
+
+    // Track queue depth
+    currentDepth := atomic.AddInt32(&worker.queueDepth, 1)
+
+    // Warn if queue is getting deep
+    if currentDepth > 100 {
+        log.Printf("Warning: Worker %d queue depth is %d", worker.id, currentDepth)
+    }
+
+    select {
+    case worker.msgChan <- msg:
+        return nil
+    case <-ctx.Done():
+        atomic.AddInt32(&worker.queueDepth, -1)
+        return ctx.Err()
+    }
+}
+```
+
+### 4. **Backpressure with Timeout**
+
+```go
+func (wp *WorkerPool) dispatch(ctx context.Context, msg Message, timeout time.Duration) error {
+    workerIndex := wp.selectWorker(msg)
+    worker := wp.workers[workerIndex]
+
+    // Try to send with timeout
+    ctx, cancel := context.WithTimeout(ctx, timeout)
+    defer cancel()
+
+    select {
+    case worker.msgChan <- msg:
+        return nil
+    case <-ctx.Done():
+        if ctx.Err() == context.DeadlineExceeded {
+            return fmt.Errorf("timeout dispatching to worker %d", workerIndex)
+        }
+        return ctx.Err()
+    }
+}
+```
+
+### 5. **Overflow Queue Pattern**
+
+```go
+type WorkerPool struct {
+    workers      []*Worker
+    resultCh     chan Result
+    stats        *Stats
+    wg           sync.WaitGroup
+    overflowQueue chan Message // Shared overflow queue
+}
+
+func (wp *WorkerPool) dispatch(ctx context.Context, msg Message) error {
+    workerIndex := wp.selectWorker(msg)
+    worker := wp.workers[workerIndex]
+
+    // Try direct send first
+    select {
+    case worker.msgChan <- msg:
+        return nil
+    default:
+        // Worker is busy, try overflow queue
+        select {
+        case wp.overflowQueue <- msg:
+            log.Printf("Message %s sent to overflow queue", msg.ID)
+            return nil
+        default:
+            return errors.New("all queues full")
+        }
+    }
+}
+
+// Separate goroutine to drain overflow queue
+func (wp *WorkerPool) drainOverflow(ctx context.Context) {
+    for {
+        select {
+        case msg := <-wp.overflowQueue:
+            // Try to dispatch with blocking
+            wp.dispatchFromOverflow(ctx, msg)
+        case <-ctx.Done():
+            return
+        }
+    }
+}
+```
+
+## Recommended Approach
+
+For your use case, I recommend:
+
+```go
+const (
+    workerQueueSize = 1000  // Adjust based on expected load
+    overflowQueueSize = 10000
+)
+
+type WorkerPool struct {
+    workers       []*Worker
+    overflowQueue chan Message
+    metrics       *Metrics
+    // ... other fields
+}
+
+type Metrics struct {
+    mu               sync.RWMutex
+    droppedMessages  int64
+    queueDepths      map[int]int32
+    overflowDepth    int32
+}
+
+func (wp *WorkerPool) dispatch(ctx context.Context, msg Message) error {
+    workerIndex := wp.selectWorker(msg)
+    worker := wp.workers[workerIndex]
+
+    // Try direct send (non-blocking)
+    select {
+    case worker.msgChan <- msg:
+        wp.metrics.recordDispatch(workerIndex, len(worker.msgChan))
+        return nil
+    default:
+        // Worker queue full, try overflow
+        select {
+        case wp.overflowQueue <- msg:
+            atomic.AddInt32(&wp.metrics.overflowDepth, 1)
+            return nil
+        default:
+            // Both full - now we have a decision to make
+            atomic.AddInt64(&wp.metrics.droppedMessages, 1)
+            return errors.New("system overloaded - message dropped")
+        }
+    }
+}
+```
+
+## Sizing Recommendations
+
+To determine appropriate buffer sizes:
+
+1. **Measure your workload**:
+   - Average processing time per message
+   - Message arrival rate
+   - Burst patterns
+
+2. **Calculate buffer needs**:
+   ```
+   Buffer Size = (Arrival Rate - Processing Rate) × Burst Duration
+   ```
+
+3. **Monitor queue depths** and adjust:
+   ```go
+   func (wp *WorkerPool) getQueueDepths() map[int]int {
+       depths := make(map[int]int)
+       for i, worker := range wp.workers {
+           depths[i] = len(worker.msgChan)
+       }
+       return depths
+   }
+   ```
+
+4. **Add alerts** when queues reach certain thresholds:
+   ```go
+   if depth > int(float64(cap(worker.msgChan)) * 0.8) {
+       log.Printf("WARNING: Worker %d queue at 80%% capacity", worker.id)
+   }
+   ```
+
+The key is to balance between:
+- Memory usage (larger buffers = more memory)
+- Message loss (smaller buffers = potential drops)
+- Backpressure (blocking sends = slows down producers)
