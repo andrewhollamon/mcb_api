@@ -1,0 +1,25 @@
+{{ define "pages/client.tmpl" }}
+<!DOCTYPE HTML>
+<html>
+<head>
+    <title>Million Checkboxes Client - {{.user_uuid}}</title>
+</head>
+<body>
+<h2>
+    Client UUID: {{.user_uuid}}
+</h2>
+<div id="checkboxes_container">
+    // partial should load here
+</div>
+
+<script>
+    function c(element) {
+        const nbr = element.id.split("_")[1];
+        const checked = element.checked;
+
+        log.info("Checkbox " + nbr + " is now " + checked);
+    }
+</script>
+</body>
+</html>
+{{ end }}

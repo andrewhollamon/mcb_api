@@ -8,12 +8,13 @@ import (
 )
 
 const (
-	EnvPrefix  = "MCBAPI_"
-	EnvLocal   = "local"
-	EnvDev     = "dev"
-	EnvTest    = "test"
-	EnvProd    = "prod"
-	EnvDefault = EnvLocal
+	EnvPrefix   = "MCBAPI_"
+	EnvLocal    = "local"
+	EnvDev      = "dev"
+	EnvTest     = "test"
+	EnvProd     = "prod"
+	EnvDefault  = EnvLocal
+	Environment = "ENVIRONMENT"
 )
 
 // var globalConfig map[string]any
@@ -29,16 +30,16 @@ func InitConfigWithFolder(configfolder string, configfile string) error {
 	v := viper.New()
 
 	// default the environment so we know which .env.* file to pick up from non-prod environments
-	v.SetDefault("ENVIRONMENT", EnvDefault)
+	v.SetDefault(Environment, EnvDefault)
 	// see if there is an environment set in the OS env vars, either with or without a prefix
-	envFromEnvironment := os.Getenv(EnvPrefix + "ENVIRONMENT")
+	envFromEnvironment := os.Getenv(EnvPrefix + Environment)
 	if envFromEnvironment == "" {
-		envFromEnvironment = os.Getenv("ENVIRONMENT")
+		envFromEnvironment = os.Getenv(Environment)
 	}
 	if envFromEnvironment != "" {
-		v.Set("ENVIRONMENT", strings.ToLower(envFromEnvironment))
+		v.Set(Environment, strings.ToLower(envFromEnvironment))
 	}
-	fmt.Println("Environment:", v.GetString("ENVIRONMENT"))
+	fmt.Println("Environment:", v.GetString(Environment))
 
 	// Set config name and paths for non-prod config (prod pulls from OS environment variables)
 	if configfolder == "" {
@@ -47,7 +48,7 @@ func InitConfigWithFolder(configfolder string, configfile string) error {
 		v.AddConfigPath(configfolder)
 	}
 	if configfile == "" {
-		v.SetConfigName(v.GetString("ENVIRONMENT"))
+		v.SetConfigName(v.GetString(Environment))
 	} else {
 		v.SetConfigName(configfile)
 	}
@@ -70,6 +71,10 @@ func InitConfigWithFolder(configfolder string, configfile string) error {
 
 	globalConfig = v
 	return nil
+}
+
+func IsDevelopment() bool {
+	return globalConfig.GetString(Environment) == EnvDev
 }
 
 // GetConfig returns the global configuration
