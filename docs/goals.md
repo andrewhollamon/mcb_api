@@ -5,10 +5,12 @@ This project is inspired by the One Million Checkboxes project as featured on Ha
 This is an excellent project to demonstrate a variety of architecture styles to support high volume and 
 shared state.
 
-This also gives an opportunity to explore different ways to handle contention and conflict in 
+This also gives an opportunity to explore different ways to handle conflict in 
 shared state.
 
 ## ARCHITECTURE GOALS VERSION 1
+
+NOTE: This is out of date and needs to be updated as the goals have shifted a little bit.  Much of this is still correct.
 
 The goals of the architecture design are as follows:
 
