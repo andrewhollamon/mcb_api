@@ -3,23 +3,178 @@
 <html>
 <head>
     <title>Million Checkboxes Client - {{.user_uuid}}</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+        }
+        
+        h2 {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: white;
+            margin: 0;
+            padding: 10px;
+            border-bottom: 1px solid #ccc;
+            z-index: 1000;
+        }
+        
+        #checkboxes_container {
+            position: relative;
+            margin-top: 60px;
+            overflow-y: auto;
+            height: calc(100vh - 60px);
+        }
+        
+        #scroll_container {
+            position: relative;
+            width: 100%;
+        }
+        
+        .checkbox-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            padding: 4px;
+            min-height: 32px;
+        }
+        
+        .checkbox-item {
+            width: 20px;
+            height: 20px;
+            margin: 2px;
+        }
+        
+        .checkbox-item input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            margin: 0;
+            cursor: pointer;
+        }
+    </style>
 </head>
 <body>
 <h2>
     Client UUID: {{.user_uuid}}
 </h2>
 <div id="checkboxes_container">
-    // partial should load here
+    <div id="scroll_container"></div>
 </div>
 
 <script>
-    function c(element) {
-        const nbr = element.id.split("_")[1];
-        const checked = element.checked;
-
-        log.info("Checkbox " + nbr + " is now " + checked);
+class VirtualCheckboxes {
+    constructor() {
+        this.totalCheckboxes = 1000000;
+        this.checkboxSize = 28; // 20px + 8px margin/gap
+        this.rowHeight = 40; // min-height + padding
+        this.container = document.getElementById('checkboxes_container');
+        this.scrollContainer = document.getElementById('scroll_container');
+        this.visibleRows = new Map();
+        this.scrollTop = 0;
+        this.checkboxesPerRow = 0;
+        this.totalRows = 0;
+        this.totalHeight = 0;
+        
+        this.init();
     }
+    
+    init() {
+        this.calculateLayout();
+        this.scrollContainer.style.height = `${this.totalHeight}px`;
+        
+        this.container.addEventListener('scroll', () => {
+            this.scrollTop = this.container.scrollTop;
+            this.updateVisibleRows();
+        });
+        
+        window.addEventListener('resize', () => {
+            this.calculateLayout();
+            this.scrollContainer.style.height = `${this.totalHeight}px`;
+            this.clearAllRows();
+            this.updateVisibleRows();
+        });
+        
+        this.updateVisibleRows();
+    }
+    
+    calculateLayout() {
+        const containerWidth = this.container.clientWidth - 16; // Account for padding
+        this.checkboxesPerRow = Math.max(1, Math.floor(containerWidth / this.checkboxSize));
+        this.totalRows = Math.ceil(this.totalCheckboxes / this.checkboxesPerRow);
+        this.totalHeight = this.totalRows * this.rowHeight;
+    }
+    
+    clearAllRows() {
+        for (const [rowIndex, element] of this.visibleRows) {
+            element.remove();
+        }
+        this.visibleRows.clear();
+    }
+    
+    updateVisibleRows() {
+        const viewportHeight = this.container.clientHeight;
+        const bufferHeight = Math.floor(viewportHeight * 0.5);
+        
+        const startY = Math.max(0, this.scrollTop - bufferHeight);
+        const endY = Math.min(this.totalHeight, this.scrollTop + viewportHeight + bufferHeight);
+        
+        const startRow = Math.floor(startY / this.rowHeight);
+        const endRow = Math.min(this.totalRows - 1, Math.ceil(endY / this.rowHeight));
+        
+        const currentlyNeeded = new Set();
+        for (let row = startRow; row <= endRow; row++) {
+            currentlyNeeded.add(row);
+        }
+        
+        for (const [rowIndex, element] of this.visibleRows) {
+            if (!currentlyNeeded.has(rowIndex)) {
+                element.remove();
+                this.visibleRows.delete(rowIndex);
+            }
+        }
+        
+        for (const rowIndex of currentlyNeeded) {
+            if (!this.visibleRows.has(rowIndex)) {
+                this.createRow(rowIndex);
+            }
+        }
+    }
+    
+    createRow(rowIndex) {
+        const rowDiv = document.createElement('div');
+        rowDiv.className = 'checkbox-row';
+        rowDiv.style.position = 'absolute';
+        rowDiv.style.top = `${rowIndex * this.rowHeight}px`;
+        rowDiv.style.left = '0';
+        rowDiv.style.right = '0';
+        
+        const startIndex = rowIndex * this.checkboxesPerRow + 1;
+        const endIndex = Math.min(this.totalCheckboxes, startIndex + this.checkboxesPerRow - 1);
+        
+        for (let i = startIndex; i <= endIndex; i++) {
+            const checkboxDiv = document.createElement('div');
+            checkboxDiv.className = 'checkbox-item';
+            
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.id = `c_${i}`;
+            
+            checkboxDiv.appendChild(checkbox);
+            rowDiv.appendChild(checkboxDiv);
+        }
+        
+        this.scrollContainer.appendChild(rowDiv);
+        this.visibleRows.set(rowIndex, rowDiv);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    new VirtualCheckboxes();
+});
 </script>
+
 </body>
 </html>
 {{ end }}

@@ -26,6 +26,7 @@ func main() {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
+	// hangs out in a goroutine and blocks until it receives CTRL+C or SIGTERM
 	go func() {
 		sig := <-sigChan
 		log.Info().Msgf("Received signal %v, shutting down gracefully...", sig)
