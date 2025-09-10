@@ -1,5 +1,9 @@
 # MILLION CHECKBOXES
 
+## WARNING - IN PROGRESS
+
+Note that you're looking at a project that is very much in progress, not yet a polished system.
+
 ## SUMMARY
 
 This project is inspired by the One Million Checkboxes project as featured on Hacker News.

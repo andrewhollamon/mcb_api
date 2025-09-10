@@ -42,7 +42,7 @@ func ConsumeCheckboxActionQueue(ctx context.Context) workers.QueueConsumerResult
 			NumProcessed: 0,
 		}
 	}
-	
+
 	result := workers.ResultEnum.Success
 	processed := 0
 	failed := 0
@@ -90,6 +90,7 @@ func ConsumeCheckboxActionQueue(ctx context.Context) workers.QueueConsumerResult
 	}
 }
 
+// TODO update to match WorkerProcessFunc signature in workerpool.go
 func processCheckboxActionMessage(ctx context.Context, message queueservice.Message, c chan workers.Result) {
 	// get the Body
 	body := queueservice.CheckboxActionMessage{}

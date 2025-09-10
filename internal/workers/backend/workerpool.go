@@ -3,29 +3,14 @@ package backend
 import (
 	"context"
 	"fmt"
+	"github.com/andrewhollamon/millioncheckboxes-api/internal/queueservice"
 	"log"
-	"os"
-	"os/signal"
 	"sync"
-	"sync/atomic"
-	"syscall"
 	"time"
 )
 
-// WARNING: this was produced by Opus 4 (web) as sample best-practices golang code
-// for a worker pool, one per db partition. This is raw from Opus, and needs to be
-// adapted and integrated into the rest of the code.  This is non-reachable at this
-// point.
-
-// Message represents a queue message
-type Message struct {
-	ID      string
-	Type    string
-	Payload []byte
-}
-
-// Result represents the processing result from a worker
-type Result struct {
+// WorkerResult represents the processing result from a worker
+type WorkerResult struct {
 	MessageID string
 	WorkerID  int
 	Success   bool
@@ -42,7 +27,7 @@ type Stats struct {
 	totalTime time.Duration
 }
 
-func (s *Stats) record(result Result) {
+func (s *Stats) record(result WorkerResult) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -71,22 +56,26 @@ func (s *Stats) snapshot() (processed, succeeded, failed int64, avgTime time.Dur
 	return
 }
 
+type WorkerProcessFunc func(ctx context.Context, msg queueservice.Message, resultCh chan<- WorkerResult) error
+
 // Worker represents a single worker
 type Worker struct {
-	id       int
-	msgChan  chan Message
-	resultCh chan<- Result
-	quit     chan struct{}
-	wg       *sync.WaitGroup
+	id        int
+	processor WorkerProcessFunc
+	msgChan   chan queueservice.Message
+	resultCh  chan<- WorkerResult
+	quit      chan struct{}
+	wg        *sync.WaitGroup
 }
 
-func NewWorker(id int, resultCh chan<- Result, wg *sync.WaitGroup) *Worker {
+func NewWorker(id int, processor WorkerProcessFunc, resultCh chan<- WorkerResult, wg *sync.WaitGroup) *Worker {
 	return &Worker{
-		id:       id,
-		msgChan:  make(chan Message, 1), // Buffered to prevent blocking
-		resultCh: resultCh,
-		quit:     make(chan struct{}),
-		wg:       wg,
+		id:        id,
+		processor: processor,
+		msgChan:   make(chan queueservice.Message, 1), // Buffered to prevent blocking
+		resultCh:  resultCh,
+		quit:      make(chan struct{}),
+		wg:        wg,
 	}
 }
 
@@ -110,8 +99,8 @@ func (w *Worker) start(ctx context.Context) {
 				start := time.Now()
 				err := w.processMessage(ctx, msg)
 
-				result := Result{
-					MessageID: msg.ID,
+				result := WorkerResult{
+					MessageID: msg.MessageId,
 					WorkerID:  w.id,
 					Success:   err == nil,
 					Error:     err,
@@ -130,45 +119,38 @@ func (w *Worker) start(ctx context.Context) {
 	}()
 }
 
-func (w *Worker) processMessage(ctx context.Context, msg Message) error {
+func (w *Worker) processMessage(ctx context.Context, msg queueservice.Message) error {
 	// Simulate processing with context awareness
-	log.Printf("Worker %d processing message %s", w.id, msg.ID)
+	log.Printf("Worker %d processing message %s", w.id, msg.MessageId)
 
-	// Simulate some IO-bound work
-	select {
-	case <-time.After(time.Millisecond * 100): // Simulate work
-		// Simulate occasional errors
-		if msg.ID[0] == 'E' {
-			return fmt.Errorf("simulated error for message %s", msg.ID)
-		}
-		return nil
-
-	case <-ctx.Done():
-		return ctx.Err()
-	}
+	return w.processor(ctx, msg, w.resultCh)
 }
 
 func (w *Worker) stop() {
 	close(w.quit)
 }
 
+type WorkerPoolSelector func(msg queueservice.Message) int
+
 // WorkerPool manages all workers
 type WorkerPool struct {
 	workers  []*Worker
-	resultCh chan Result
+	resultCh chan WorkerResult
+	selector WorkerPoolSelector
 	stats    *Stats
 	wg       sync.WaitGroup
 }
 
-func NewWorkerPool(numWorkers int) *WorkerPool {
+func NewWorkerPool(numWorkers int, selector WorkerPoolSelector, processor WorkerProcessFunc) *WorkerPool {
 	wp := &WorkerPool{
 		workers:  make([]*Worker, numWorkers),
-		resultCh: make(chan Result, numWorkers*2), // Buffered to prevent blocking
+		resultCh: make(chan WorkerResult, numWorkers*2), // Buffered to prevent blocking
+		selector: selector,
 		stats:    &Stats{},
 	}
 
 	for i := 0; i < numWorkers; i++ {
-		wp.workers[i] = NewWorker(i, wp.resultCh, &wp.wg)
+		wp.workers[i] = NewWorker(i, processor, wp.resultCh, &wp.wg)
 	}
 
 	return wp
@@ -195,7 +177,7 @@ func (wp *WorkerPool) collectResults(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			log.Println("Result collector shutting down")
+			log.Println("WorkerResult collector shutting down")
 			// Drain remaining results
 			for {
 				select {
@@ -212,14 +194,14 @@ func (wp *WorkerPool) collectResults(ctx context.Context) {
 	}
 }
 
-func (wp *WorkerPool) handleResult(result Result) {
+func (wp *WorkerPool) handleResult(result WorkerResult) {
 	wp.stats.record(result)
 
 	if result.Error != nil {
-		log.Printf("Message %s failed on worker %d: %v",
+		log.Printf("WorkerMessage %s failed on worker %d: %v",
 			result.MessageID, result.WorkerID, result.Error)
 	} else {
-		log.Printf("Message %s succeeded on worker %d in %v",
+		log.Printf("WorkerMessage %s succeeded on worker %d in %v",
 			result.MessageID, result.WorkerID, result.Duration)
 	}
 }
@@ -249,9 +231,9 @@ func (wp *WorkerPool) printStats() {
 		processed, succeeded, failed, avgTime)
 }
 
-func (wp *WorkerPool) dispatch(msg Message) error {
+func (wp *WorkerPool) dispatch(msg queueservice.Message) error {
 	// Route message to specific worker based on payload
-	workerIndex := wp.selectWorker(msg)
+	workerIndex := wp.selector(msg)
 	worker := wp.workers[workerIndex]
 
 	// Non-blocking send to prevent deadlock
@@ -261,16 +243,6 @@ func (wp *WorkerPool) dispatch(msg Message) error {
 	default:
 		return fmt.Errorf("worker %d queue is full", workerIndex)
 	}
-}
-
-func (wp *WorkerPool) selectWorker(msg Message) int {
-	// Example: Use message type to determine worker
-	// This ensures same type always goes to same worker
-	hash := 0
-	for _, b := range []byte(msg.Type) {
-		hash = (hash * 31) + int(b)
-	}
-	return abs(hash) % len(wp.workers)
 }
 
 func (wp *WorkerPool) shutdown() {
@@ -290,6 +262,7 @@ func (wp *WorkerPool) shutdown() {
 	log.Println("Worker pool shutdown complete")
 }
 
+/*
 // Main application structure
 type App struct {
 	pool     *WorkerPool
@@ -332,27 +305,13 @@ func (app *App) run(ctx context.Context) {
 			// Simulate receiving a message from queue
 			msgID := fmt.Sprintf("MSG-%d", atomic.AddInt64(&msgCount, 1))
 
-			// Add some variety to message types
-			msgType := "typeA"
-			if msgCount%3 == 0 {
-				msgType = "typeB"
-			} else if msgCount%5 == 0 {
-				msgType = "typeC"
-			}
-
-			// Simulate error messages
-			if msgCount%13 == 0 {
-				msgID = "E" + msgID // Will trigger error in worker
-			}
-
-			msg := Message{
-				ID:      msgID,
-				Type:    msgType,
-				Payload: []byte(fmt.Sprintf("Payload for %s", msgID)),
+			msg := queueservice.Message{
+				MessageId: msgID,
+				Body:      "test",
 			}
 
 			if err := app.pool.dispatch(msg); err != nil {
-				log.Printf("Failed to dispatch message %s: %v", msg.ID, err)
+				log.Printf("Failed to dispatch message %s: %v", msg.MessageId, err)
 			}
 		}
 	}
@@ -406,3 +365,4 @@ func abs(n int) int {
 	}
 	return n
 }
+*/
