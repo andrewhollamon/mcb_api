@@ -63,6 +63,10 @@ func SetupRouter() *gin.Engine {
 	r.POST("/api/v1/checkbox/:checkboxNbr/uncheck/:userUuid", checkboxUncheck)
 
 	r.GET("/web/client", clientPage)
+
+	// Websocket endpoints
+	r.GET("/ws/v1/allCheckboxes", wsGetAllCheckboxes)
+
 	return r
 }
 
