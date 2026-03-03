@@ -164,7 +164,7 @@ func WithError(err error) *zerolog.Event {
 }
 
 // WithFields adds multiple fields to a log event
-func WithFields(fields map[string]interface{}) *zerolog.Event {
+func WithFields(fields map[string]any) *zerolog.Event {
 	event := log.Info()
 	for key, value := range fields {
 		event = event.Interface(key, value)
@@ -186,7 +186,7 @@ func LogRequest(method, path, userAgent, clientIP, traceID string, duration time
 }
 
 // LogError logs error with context
-func LogError(err error, traceID, message string, fields map[string]interface{}) {
+func LogError(err error, traceID, message string, fields map[string]any) {
 	event := log.Error().
 		Err(err).
 		Str("trace_id", traceID).
@@ -200,7 +200,7 @@ func LogError(err error, traceID, message string, fields map[string]interface{})
 }
 
 // LogInfo logs info message with context
-func LogInfo(traceID, message string, fields map[string]interface{}) {
+func LogInfo(traceID, message string, fields map[string]any) {
 	event := log.Info().
 		Str("trace_id", traceID).
 		Str("message", message)
@@ -213,7 +213,7 @@ func LogInfo(traceID, message string, fields map[string]interface{}) {
 }
 
 // LogDebug logs debug message with context
-func LogDebug(traceID, message string, fields map[string]interface{}) {
+func LogDebug(traceID, message string, fields map[string]any) {
 	event := log.Debug().
 		Str("trace_id", traceID).
 		Str("message", message)

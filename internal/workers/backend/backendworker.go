@@ -66,7 +66,7 @@ func ConsumeCheckboxActionQueue(ctx context.Context) workers.QueueConsumerResult
 	}
 
 	// process all the message results
-	for i := 0; i < messageCount; i++ {
+	for range messageCount {
 		innerresult := <-c
 		if innerresult == workers.ResultEnum.Success {
 			processed++

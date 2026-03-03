@@ -11,7 +11,7 @@ import (
 
 // ErrorHandlingMiddleware handles panics and APIErrors in Gin handlers
 func ErrorHandlingMiddleware() gin.HandlerFunc {
-	return gin.CustomRecoveryWithWriter(gin.DefaultWriter, func(c *gin.Context, recovered interface{}) {
+	return gin.CustomRecoveryWithWriter(gin.DefaultWriter, func(c *gin.Context, recovered any) {
 		// Handle panics
 		if recovered != nil {
 			handlePanic(c, recovered)
@@ -29,7 +29,7 @@ func ErrorHandlingMiddleware() gin.HandlerFunc {
 }
 
 // handlePanic processes panic recovery
-func handlePanic(c *gin.Context, recovered interface{}) {
+func handlePanic(c *gin.Context, recovered any) {
 	traceID := getTraceID(c)
 
 	// Log the panic with stack trace

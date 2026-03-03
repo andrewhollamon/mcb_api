@@ -74,7 +74,7 @@ func InitializePool(ctx context.Context) error {
 }
 
 // Query executes a parameterized query that returns zero to many rows
-func Query(ctx context.Context, query string, args ...interface{}) (pgx.Rows, error) {
+func Query(ctx context.Context, query string, args ...any) (pgx.Rows, error) {
 	if pool == nil {
 		return nil, fmt.Errorf("database pool not initialized")
 	}
@@ -99,7 +99,7 @@ func Query(ctx context.Context, query string, args ...interface{}) (pgx.Rows, er
 
 // Exec executes a parameterized query that returns zero or one return value
 // and returns the number of affected rows
-func Exec(ctx context.Context, query string, args ...interface{}) (pgconn.CommandTag, error) {
+func Exec(ctx context.Context, query string, args ...any) (pgconn.CommandTag, error) {
 	if pool == nil {
 		return pgconn.CommandTag{}, fmt.Errorf("database pool not initialized")
 	}
@@ -165,7 +165,7 @@ func BeginTx(ctx context.Context) (pgx.Tx, error) {
 }
 
 // QueryTx executes a parameterized query within a transaction that returns zero to many rows
-func QueryTx(ctx context.Context, tx pgx.Tx, query string, args ...interface{}) (pgx.Rows, error) {
+func QueryTx(ctx context.Context, tx pgx.Tx, query string, args ...any) (pgx.Rows, error) {
 	if tx == nil {
 		return nil, fmt.Errorf("transaction is nil")
 	}
@@ -190,7 +190,7 @@ func QueryTx(ctx context.Context, tx pgx.Tx, query string, args ...interface{}) 
 
 // ExecTx executes a parameterized command within a transaction that returns zero or one return value
 // and returns the number of affected rows
-func ExecTx(ctx context.Context, tx pgx.Tx, query string, args ...interface{}) (pgconn.CommandTag, error) {
+func ExecTx(ctx context.Context, tx pgx.Tx, query string, args ...any) (pgconn.CommandTag, error) {
 	if tx == nil {
 		return pgconn.CommandTag{}, fmt.Errorf("transaction is nil")
 	}

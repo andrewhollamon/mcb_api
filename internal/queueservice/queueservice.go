@@ -65,7 +65,7 @@ var (
 	providerOnce     sync.Once
 )
 
-func (m *Message) UnmarshalBody(v interface{}) apierror.APIError {
+func (m *Message) UnmarshalBody(v any) apierror.APIError {
 	err := json.Unmarshal([]byte(m.Body), v)
 	if err != nil {
 		return apierror.WrapWithCodeFromConstants(err, apierror.ErrInternalServer, fmt.Sprintf("Could not unmarshal message json into type %T", v))
@@ -93,7 +93,7 @@ func PublishCheckboxAction(ctx context.Context, payload CheckboxActionPayload) (
 	traceID := tracing.GetTraceIDFromContext(ctx)
 
 	// Log the queue operation
-	logging.LogQueueOperation(traceID, "publish_checkbox_action", map[string]interface{}{
+	logging.LogQueueOperation(traceID, "publish_checkbox_action", map[string]any{
 		"action":       payload.Action,
 		"checkbox_nbr": payload.CheckboxNbr,
 		"user_uuid":    payload.UserUuid,
@@ -117,14 +117,14 @@ func PublishCheckboxAction(ctx context.Context, payload CheckboxActionPayload) (
 	provider := getQueueProvider()
 	result, err := provider.PublishCheckboxAction(ctx, message)
 	if err != nil {
-		logging.LogQueueOperation(traceID, "publish_checkbox_action_failed", map[string]interface{}{
+		logging.LogQueueOperation(traceID, "publish_checkbox_action_failed", map[string]any{
 			"error": err.Error(),
 		})
 		return PublishMessageResult{}, err
 	}
 
 	// Log successful publication
-	logging.LogQueueOperation(traceID, "publish_checkbox_action_success", map[string]interface{}{
+	logging.LogQueueOperation(traceID, "publish_checkbox_action_success", map[string]any{
 		"message_id":      result.MessageId,
 		"sequence_number": result.SequenceNumber,
 	})
@@ -141,7 +141,7 @@ func PullCheckboxActionMessages(ctx context.Context) ([]Message, apierror.APIErr
 }
 
 func DeleteMessage(ctx context.Context, message *Message) apierror.APIError {
-	logging.LogQueueOperation(tracing.GetTraceIDFromContext(ctx), "delete_message", map[string]interface{}{
+	logging.LogQueueOperation(tracing.GetTraceIDFromContext(ctx), "delete_message", map[string]any{
 		"message_id":      message.MessageId,
 		"sequence_number": message.SequenceNumber,
 	})

@@ -131,7 +131,7 @@ func DetailedRequestLoggingMiddleware() gin.HandlerFunc {
 }
 
 // LogAPICall logs API calls with parameters
-func LogAPICall(c *gin.Context, operation string, params map[string]interface{}) {
+func LogAPICall(c *gin.Context, operation string, params map[string]any) {
 	traceID := ""
 	if id, exists := c.Get("trace_id"); exists {
 		if idStr, ok := id.(string); ok {
@@ -153,7 +153,7 @@ func LogAPICall(c *gin.Context, operation string, params map[string]interface{})
 }
 
 // LogAPIResponse logs API response
-func LogAPIResponse(c *gin.Context, operation string, statusCode int, responseData interface{}) {
+func LogAPIResponse(c *gin.Context, operation string, statusCode int, responseData any) {
 	traceID := ""
 	if id, exists := c.Get("trace_id"); exists {
 		if idStr, ok := id.(string); ok {
@@ -170,7 +170,7 @@ func LogAPIResponse(c *gin.Context, operation string, statusCode int, responseDa
 }
 
 // LogQueueOperation logs queue operations
-func LogQueueOperation(traceID, operation string, params map[string]interface{}) {
+func LogQueueOperation(traceID, operation string, params map[string]any) {
 	event := log.Info().
 		Str("trace_id", traceID).
 		Str("operation", operation).
@@ -184,7 +184,7 @@ func LogQueueOperation(traceID, operation string, params map[string]interface{})
 }
 
 // LogDatabaseOperation logs database operations
-func LogDatabaseOperation(traceID, operation string, params map[string]interface{}) {
+func LogDatabaseOperation(traceID, operation string, params map[string]any) {
 	event := log.Info().
 		Str("trace_id", traceID).
 		Str("operation", operation).

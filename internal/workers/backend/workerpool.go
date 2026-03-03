@@ -149,7 +149,7 @@ func NewWorkerPool(numWorkers int, selector WorkerPoolSelector, processor Worker
 		stats:    &Stats{},
 	}
 
-	for i := 0; i < numWorkers; i++ {
+	for i := range numWorkers {
 		wp.workers[i] = NewWorker(i, processor, wp.resultCh, &wp.wg)
 	}
 

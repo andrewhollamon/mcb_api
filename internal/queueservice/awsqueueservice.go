@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"sync"
 	"time"
 
@@ -17,7 +18,7 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-type awsQueueProvider struct{
+type awsQueueProvider struct {
 	snsClient *sns.Client
 	sqsClient *sqs.Client
 	mu        sync.RWMutex
@@ -32,7 +33,7 @@ type SqsMessage struct {
 	Attributes     map[string]string
 }
 
-func (m *SqsMessage) UnmarshalBody(v interface{}) apierror.APIError {
+func (m *SqsMessage) UnmarshalBody(v any) apierror.APIError {
 	err := json.Unmarshal([]byte(m.Body), v)
 	if err != nil {
 		return apierror.WrapWithCodeFromConstants(err, apierror.ErrInternalServer, fmt.Sprintf("Could not unmarshal message json into type %T", v))
@@ -87,9 +88,7 @@ func (a *awsQueueProvider) PullCheckboxActionMessages(ctx context.Context) ([]Me
 			msg.SequenceNumber = seqNum
 		}
 
-		for k, v := range resultMessage.Attributes {
-			msg.Attributes[k] = v
-		}
+		maps.Copy(msg.Attributes, resultMessage.Attributes)
 
 		messages = append(messages, msg)
 	}

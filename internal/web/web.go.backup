@@ -1,0 +1,22 @@
+package web
+
+import (
+	"embed"
+	"io/fs"
+)
+
+//go:embed templates/*
+var templateFS embed.FS
+
+//go:embed static/*
+var staticFS embed.FS
+
+func GetTemplateFS() fs.FS {
+	fsys, _ := fs.Sub(templateFS, "../../web/templates")
+	return fsys
+}
+
+func GetStaticFS() fs.FS {
+	fsys, _ := fs.Sub(staticFS, "../../web/static/**/*")
+	return fsys
+}

@@ -52,10 +52,7 @@ func main() {
 			result.Result == workers.ResultEnum.Failure)
 
 		// wait time is sleepTimeMultiplier * runtime ... this provides a poor-man's automatic backoff if the processing slows down
-		sleeptime := time.Duration(runtimeSeconds) * time.Second * sleepTimeMultiplier
-		if sleeptime < consumeCheckboxActionMinSleepTimeDuration {
-			sleeptime = consumeCheckboxActionMinSleepTimeDuration
-		}
+		sleeptime := max(time.Duration(runtimeSeconds)*time.Second*sleepTimeMultiplier, consumeCheckboxActionMinSleepTimeDuration)
 
 		// Context-aware sleep
 		timer := time.NewTimer(sleeptime)

@@ -88,7 +88,7 @@ func getServerIp() string {
 }
 
 func getStatus(c *gin.Context) {
-	logging.LogAPICall(c, "get_status", map[string]interface{}{
+	logging.LogAPICall(c, "get_status", map[string]any{
 		"checkbox_nbr": c.Param("checkboxNbr"),
 	})
 
@@ -117,7 +117,7 @@ func getStatus(c *gin.Context) {
 }
 
 func checkboxCheck(c *gin.Context) {
-	logging.LogAPICall(c, "checkbox_check", map[string]interface{}{
+	logging.LogAPICall(c, "checkbox_check", map[string]any{
 		"checkbox_nbr": c.Param("checkboxNbr"),
 		"user_uuid":    c.Param("userUuid"),
 	})
@@ -164,7 +164,7 @@ func checkboxCheck(c *gin.Context) {
 }
 
 func checkboxUncheck(c *gin.Context) {
-	logging.LogAPICall(c, "checkbox_uncheck", map[string]interface{}{
+	logging.LogAPICall(c, "checkbox_uncheck", map[string]any{
 		"checkbox_nbr": c.Param("checkboxNbr"),
 		"user_uuid":    c.Param("userUuid"),
 	})
